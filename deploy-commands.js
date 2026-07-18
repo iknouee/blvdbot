@@ -6,18 +6,30 @@ const {
     SlashCommandBuilder,
 } = require('discord.js');
 
+
 const commands = [
+
     new SlashCommandBuilder()
         .setName('panic')
         .setDescription('Lock every channel in the server.')
         .toJSON(),
+
+
+    new SlashCommandBuilder()
+        .setName('unpanic')
+        .setDescription('Unlock every channel in the server.')
+        .toJSON(),
+
 ];
 
+
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
 
 (async () => {
     try {
         console.log('Registering slash commands...');
+
 
         await rest.put(
             Routes.applicationGuildCommands(
@@ -29,7 +41,9 @@ const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
             }
         );
 
+
         console.log('Successfully registered slash commands.');
+
     } catch (error) {
         console.error(error);
     }
