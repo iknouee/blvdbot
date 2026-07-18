@@ -8,6 +8,7 @@ const {
     ActivityType,
 } = require('discord.js');
 
+
 // Render web server
 const app = express();
 
@@ -46,23 +47,72 @@ client.once(Events.ClientReady, () => {
 });
 
 
-// Ping reply
+// Random replies when pinged
 client.on(Events.MessageCreate, async (message) => {
+
     if (message.author.bot) return;
 
+
     if (message.mentions.has(client.user)) {
-        await message.reply('hey cutie');
+
+        const replies = [
+            "hey cutie 😌",
+            "you called? 👀",
+            "yes boss? 🫡",
+            "hello there ✨",
+            "did someone say my name? 😭",
+            "beep boop, i'm alive 🤖",
+            "what's up legend?",
+            "sup 😎",
+            "i was just chilling lol",
+            "need something? 👀",
+            "yo yo yo",
+            "hello handsome/beautiful 😌",
+            "at your service 🫡",
+            "omg hi",
+            "don't ping me unless you love me 💅",
+            "i have been summoned ✨",
+            "the bot has arrived 🚨",
+            "hey hey 👋",
+            "what can i do for you?",
+            "you rang? 📞",
+            "bro woke me up 💀",
+            "i'm literally just code 😭",
+            "another ping? seriously? 💀",
+            "my CPU is blushing rn",
+            "404: chill not found",
+            "i have feelings (probably)",
+            "blvd forever 🖤",
+            "welcome to the boulevard",
+            "verified gang rise up",
+            "panic mode ready 🚨"
+        ];
+
+
+        const randomReply = replies[
+            Math.floor(Math.random() * replies.length)
+        ];
+
+
+        await message.reply(randomReply);
     }
+
 });
+
 
 
 // Slash commands
 client.on(Events.InteractionCreate, async (interaction) => {
+
     if (!interaction.isChatInputCommand()) return;
 
 
-    // PANIC COMMAND
+
+    // =====================
+    // PANIC
+    // =====================
     if (interaction.commandName === 'panic') {
+
 
         if (!interaction.memberPermissions.has('Administrator')) {
             return interaction.reply({
@@ -71,68 +121,78 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        let locked = 0;
 
         await interaction.reply({
-            embeds: [
-                {
-                    color: 0xff3333,
-                    title: '🚨 Panic Mode Enabled',
-                    description: 'Locking channels...',
-                },
-            ],
+            content: '🚨 Locking all channels...',
         });
 
 
+        let locked = 0;
+
+
+        const verifiedRole = interaction.guild.roles.cache.find(
+            role => role.name.toLowerCase() === 'verified'
+        );
+
+
         for (const channel of interaction.guild.channels.cache.values()) {
+
             try {
 
-                if ('permissionOverwrites' in channel) {
+                if (!channel.isTextBased()) continue;
+
+
+                await channel.permissionOverwrites.edit(
+                    interaction.guild.roles.everyone,
+                    {
+                        SendMessages: false,
+                        SendMessagesInThreads: false,
+                        CreatePublicThreads: false,
+                        CreatePrivateThreads: false,
+                    }
+                );
+
+
+                if (verifiedRole) {
 
                     await channel.permissionOverwrites.edit(
-                        interaction.guild.roles.everyone,
+                        verifiedRole,
                         {
                             SendMessages: false,
+                            SendMessagesInThreads: false,
                             CreatePublicThreads: false,
                             CreatePrivateThreads: false,
-                            SendMessagesInThreads: false,
                         }
                     );
 
-                    locked++;
                 }
 
+
+                locked++;
+
+
             } catch (err) {
-                console.error(err);
+                console.error(`Failed locking ${channel.name}`, err);
             }
         }
 
 
         await interaction.editReply({
-            embeds: [
-                {
-                    color: 0xff3333,
-                    title: '🚨 Panic Mode Enabled',
-                    fields: [
-                        {
-                            name: 'Activated By',
-                            value: `<@${interaction.user.id}>`,
-                        },
-                        {
-                            name: 'Channels Locked',
-                            value: `${locked}`,
-                        },
-                    ],
-                    timestamp: new Date().toISOString(),
-                },
-            ],
+            content:
+                `🚨 Panic Mode Enabled\n\n` +
+                `🔒 Channels Locked: ${locked}\n` +
+                `👥 Verified role locked: ${verifiedRole ? 'Yes' : 'No'}`
         });
+
     }
 
 
 
-    // UNPANIC COMMAND
+    // =====================
+    // UNPANIC
+    // =====================
     if (interaction.commandName === 'unpanic') {
+
 
         if (!interaction.memberPermissions.has('Administrator')) {
             return interaction.reply({
@@ -140,47 +200,73 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 ephemeral: true,
             });
         }
+
+
+        await interaction.reply({
+            content: '🔓 Unlocking all channels...',
+        });
 
 
         let unlocked = 0;
 
 
-        await interaction.reply({
-            content: '🔓 Unlocking channels...',
-        });
+        const verifiedRole = interaction.guild.roles.cache.find(
+            role => role.name.toLowerCase() === 'verified'
+        );
 
 
         for (const channel of interaction.guild.channels.cache.values()) {
 
             try {
 
-                if ('permissionOverwrites' in channel) {
+                if (!channel.isTextBased()) continue;
+
+
+                await channel.permissionOverwrites.edit(
+                    interaction.guild.roles.everyone,
+                    {
+                        SendMessages: null,
+                        SendMessagesInThreads: null,
+                        CreatePublicThreads: null,
+                        CreatePrivateThreads: null,
+                    }
+                );
+
+
+                if (verifiedRole) {
 
                     await channel.permissionOverwrites.edit(
-                        interaction.guild.roles.everyone,
+                        verifiedRole,
                         {
                             SendMessages: null,
+                            SendMessagesInThreads: null,
                             CreatePublicThreads: null,
                             CreatePrivateThreads: null,
-                            SendMessagesInThreads: null,
                         }
                     );
 
-                    unlocked++;
                 }
 
+
+                unlocked++;
+
+
             } catch (err) {
-                console.error(err);
+                console.error(`Failed unlocking ${channel.name}`, err);
             }
         }
 
 
         await interaction.editReply({
-            content: `🔓 Channels unlocked: ${unlocked}`,
+            content:
+                `🔓 Panic Mode Disabled\n\n` +
+                `Unlocked Channels: ${unlocked}`
         });
+
     }
 
 });
+
 
 
 client.login(process.env.TOKEN);
