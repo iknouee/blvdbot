@@ -1,60 +1,88 @@
 require('dotenv').config();
 
+const fs = require('fs');
+
 const {
     REST,
-    Routes,
-    SlashCommandBuilder,
+    Routes
 } = require('discord.js');
 
 
-const commands = [
 
-    new SlashCommandBuilder()
-        .setName('panic')
-        .setDescription('Lock every channel.')
-        .toJSON(),
-
-    new SlashCommandBuilder()
-        .setName('unpanic')
-        .setDescription('Unlock every channel.')
-        .toJSON(),
-
-    new SlashCommandBuilder()
-        .setName('vibe')
-        .setDescription('Get a random Beloved vibe.')
-        .toJSON(),
-
-];
+const commands = [];
 
 
-const rest = new REST({ version: '10' })
-    .setToken(process.env.TOKEN);
+
+const commandFiles =
+    fs.readdirSync('./commands')
+    .filter(file => file.endsWith('.js'));
 
 
-(async () => {
 
-    try {
-
-        console.log("Registering slash commands...");
+for(const file of commandFiles){
 
 
-        await rest.put(
-            Routes.applicationGuildCommands(
-                process.env.CLIENT_ID,
-                process.env.GUILD_ID
-            ),
-            {
-                body: commands,
-            }
-        );
+    const command =
+        require(`./commands/${file}`);
 
 
-        console.log("Successfully registered slash commands.");
+    commands.push(
+        command.data.toJSON()
+    );
 
-    } catch (error) {
 
-        console.error(error);
+}
 
+
+
+const rest = new REST({
+
+    version:'10'
+
+}).setToken(
+    process.env.TOKEN
+);
+
+
+
+(async()=>{
+
+
+try{
+
+
+console.log(
+    "💖 Deploying Beloved commands..."
+);
+
+
+
+await rest.put(
+
+    Routes.applicationCommands(
+        process.env.CLIENT_ID
+    ),
+
+    {
+        body:commands
     }
+
+);
+
+
+
+console.log(
+    "✅ Commands deployed"
+);
+
+
+
+}catch(error){
+
+console.error(error);
+
+}
+
+
 
 })();
