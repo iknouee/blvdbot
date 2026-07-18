@@ -1,1 +1,36 @@
-require('dotenv').config();const {REST,Routes,SlashCommandBuilder}=require('discord.js');const cmd=[new SlashCommandBuilder().setName('panic').setDescription('Lock all channels')].map(c=>c.toJSON());new REST({version:'10'}).setToken(process.env.TOKEN).put(Routes.applicationGuildCommands(process.env.CLIENT_ID,process.env.GUILD_ID),{body:cmd}).then(()=>console.log('done'));
+require('dotenv').config();
+
+const {
+    REST,
+    Routes,
+    SlashCommandBuilder,
+} = require('discord.js');
+
+const commands = [
+    new SlashCommandBuilder()
+        .setName('panic')
+        .setDescription('Lock every channel in the server.')
+        .toJSON(),
+];
+
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+(async () => {
+    try {
+        console.log('Registering slash commands...');
+
+        await rest.put(
+            Routes.applicationGuildCommands(
+                process.env.CLIENT_ID,
+                process.env.GUILD_ID
+            ),
+            {
+                body: commands,
+            }
+        );
+
+        console.log('Successfully registered slash commands.');
+    } catch (error) {
+        console.error(error);
+    }
+})();
