@@ -19,12 +19,12 @@ const {
 
 const app = express();
 
-app.get('/', (req,res)=>{
+app.get('/', (req, res) => {
     res.send("💖 Beloved is online");
 });
 
-app.listen(process.env.PORT || 3000, ()=>{
-    console.log("Web server running");
+app.listen(process.env.PORT || 3000, () => {
+    console.log("🌐 Web server running");
 });
 
 
@@ -34,7 +34,7 @@ app.listen(process.env.PORT || 3000, ()=>{
 
 const client = new Client({
 
-    intents:[
+    intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
@@ -43,9 +43,8 @@ const client = new Client({
 });
 
 
-
 // =====================
-// Slash Commands
+// Commands
 // =====================
 
 const commands = [
@@ -57,10 +56,9 @@ new SlashCommandBuilder()
 .addUserOption(option =>
     option
     .setName("user")
-    .setDescription("Who do you love?")
+    .setDescription("Person")
     .setRequired(true)
 ),
-
 
 
 new SlashCommandBuilder()
@@ -69,10 +67,9 @@ new SlashCommandBuilder()
 .addUserOption(option =>
     option
     .setName("user")
-    .setDescription("Who gets roasted?")
+    .setDescription("Person")
     .setRequired(true)
 ),
-
 
 
 new SlashCommandBuilder()
@@ -81,28 +78,20 @@ new SlashCommandBuilder()
 .addUserOption(option =>
     option
     .setName("user")
-    .setDescription("Who gets complimented?")
+    .setDescription("Person")
     .setRequired(true)
 ),
-
-
-
-new SlashCommandBuilder()
-.setName("vibe")
-.setDescription("Check the vibe"),
-
 
 
 new SlashCommandBuilder()
 .setName("hug")
-.setDescription("Give someone a hug")
+.setDescription("Hug someone")
 .addUserOption(option =>
     option
     .setName("user")
-    .setDescription("Who gets hugged?")
+    .setDescription("Person")
     .setRequired(true)
 ),
-
 
 
 new SlashCommandBuilder()
@@ -122,17 +111,19 @@ new SlashCommandBuilder()
 ),
 
 
+new SlashCommandBuilder()
+.setName("vibe")
+.setDescription("Check the vibe"),
+
 
 new SlashCommandBuilder()
 .setName("fortune")
-.setDescription("Get a random fortune"),
-
+.setDescription("Get a funny fortune"),
 
 
 new SlashCommandBuilder()
 .setName("mood")
 .setDescription("Check Beloved's mood"),
-
 
 
 new SlashCommandBuilder()
@@ -141,7 +132,29 @@ new SlashCommandBuilder()
 .addStringOption(option =>
     option
     .setName("question")
-    .setDescription("Your question")
+    .setDescription("Question")
+    .setRequired(true)
+),
+
+
+new SlashCommandBuilder()
+.setName("8ball")
+.setDescription("Magic 8 ball")
+.addStringOption(option =>
+    option
+    .setName("question")
+    .setDescription("Question")
+    .setRequired(true)
+),
+
+
+new SlashCommandBuilder()
+.setName("rate")
+.setDescription("Rate someone")
+.addUserOption(option =>
+    option
+    .setName("user")
+    .setDescription("Person")
     .setRequired(true)
 )
 
@@ -160,36 +173,47 @@ const rest = new REST({
 
 
 
-(async()=>{
+async function deployCommands(){
 
 try{
 
-console.log("Deploying commands...");
+console.log("💖 Deploying commands...");
+
 
 await rest.put(
 
-Routes.applicationCommands(
-    process.env.CLIENT_ID
+Routes.applicationGuildCommands(
+
+process.env.CLIENT_ID,
+
+process.env.GUILD_ID
+
 ),
 
 {
-    body:commands.map(c=>c.toJSON())
+body: commands.map(
+command => command.toJSON()
+)
 }
 
 );
 
-console.log("Commands deployed");
 
-}
-catch(err){
+console.log("✅ Commands deployed");
 
-console.error(err);
 
 }
 
-})();
+catch(error){
+
+console.error(error);
+
+}
+
+}
 
 
+deployCommands();
 
 
 
@@ -201,6 +225,7 @@ client.once(
 Events.ClientReady,
 ()=>{
 
+
 console.log(
 `💖 Beloved online as ${client.user.tag}`
 );
@@ -208,12 +233,14 @@ console.log(
 
 client.user.setPresence({
 
-activities:[{
+activities:[
 
-name:"spreading chaos 💕",
+{
+name:"causing chaos 💕",
 type:ActivityType.Watching
+}
 
-}],
+],
 
 status:"online"
 
@@ -224,45 +251,37 @@ status:"online"
 
 
 
-
-
 // =====================
-// Command Responses
+// Slash Command Handler
 // =====================
 
 client.on(
 Events.InteractionCreate,
-async interaction=>{
+async interaction => {
 
 
 if(!interaction.isChatInputCommand())
 return;
 
 
+try{
 
-const command = interaction.commandName;
+
+const command =
+interaction.commandName;
 
 
 
 // LOVE
 
-if(command==="love"){
+if(command === "love"){
 
-let user =
+const user =
 interaction.options.getUser("user");
 
 
-const replies=[
-
-`💖 ${user} Beloved has decided you are adorable`,
-`💕 ${user} received 1000 love points`,
-`❤️ ${user} is officially loved by the boulevard`
-
-];
-
-
 return interaction.reply(
-replies[Math.floor(Math.random()*replies.length)]
+`💖 ${user} has received Beloved's love blessing`
 );
 
 }
@@ -271,17 +290,17 @@ replies[Math.floor(Math.random()*replies.length)]
 
 // ROAST
 
-if(command==="roast"){
+if(command === "roast"){
 
-let user =
+const user =
 interaction.options.getUser("user");
 
 
 const roasts=[
 
-`🔥 ${user} has the energy of a broken charger`,
-`💀 ${user} probably says "trust me" before bad ideas`,
-`😭 ${user} is running on 2 brain cells and WiFi`
+`🔥 ${user} uses Internet Explorer`,
+`💀 ${user} probably loses arguments with Google`,
+`😭 ${user} has NPC energy`
 
 ];
 
@@ -296,14 +315,53 @@ roasts[Math.floor(Math.random()*roasts.length)]
 
 // COMPLIMENT
 
-if(command==="compliment"){
+if(command === "compliment"){
 
-let user =
+const user =
 interaction.options.getUser("user");
 
 
 return interaction.reply(
-`✨ ${user} is amazing and Beloved approves`
+`✨ ${user} is officially approved by Beloved`
+);
+
+}
+
+
+
+// HUG
+
+if(command === "hug"){
+
+const user =
+interaction.options.getUser("user");
+
+
+return interaction.reply(
+`🤗 Beloved hugged ${user}`
+);
+
+}
+
+
+
+// SHIP
+
+if(command === "ship"){
+
+const one =
+interaction.options.getUser("one");
+
+const two =
+interaction.options.getUser("two");
+
+
+let score =
+Math.floor(Math.random()*101);
+
+
+return interaction.reply(
+`💘 ${one} + ${two}\nCompatibility: ${score}%`
 );
 
 }
@@ -312,14 +370,14 @@ return interaction.reply(
 
 // VIBE
 
-if(command==="vibe"){
+if(command === "vibe"){
 
 const vibes=[
 
-"🔥 Maximum vibes detected",
-"💖 Cute chaos energy",
-"💀 Something suspicious is happening",
-"😎 Certified boulevard moment"
+"🔥 Maximum vibes",
+"💖 Cute chaos",
+"💀 Suspicious energy",
+"😎 Legendary"
 
 ];
 
@@ -332,56 +390,15 @@ vibes[Math.floor(Math.random()*vibes.length)]
 
 
 
-// HUG
-
-if(command==="hug"){
-
-let user =
-interaction.options.getUser("user");
-
-
-return interaction.reply(
-`🤗 Beloved gives ${user} a giant hug`
-);
-
-}
-
-
-
-// SHIP
-
-if(command==="ship"){
-
-let one =
-interaction.options.getUser("one");
-
-let two =
-interaction.options.getUser("two");
-
-
-let percent =
-Math.floor(Math.random()*101);
-
-
-return interaction.reply(
-
-`💘 ${one} + ${two}\nCompatibility: ${percent}%`
-
-);
-
-}
-
-
-
 // FORTUNE
 
-if(command==="fortune"){
+if(command === "fortune"){
 
 const fortunes=[
 
-"🔮 You will find happiness... probably in snacks",
-"🔮 Great things are coming. Maybe tomorrow.",
-"🔮 Your future contains questionable decisions"
+"🔮 You will find happiness near snacks",
+"🔮 Something amazing will happen... eventually",
+"🔮 Your future contains questionable choices"
 
 ];
 
@@ -396,20 +413,10 @@ fortunes[Math.floor(Math.random()*fortunes.length)]
 
 // MOOD
 
-if(command==="mood"){
-
-const moods=[
-
-"😊 Happy",
-"😈 Chaotic",
-"🥲 Emotionally attached to Discord",
-"🤖 Robot mode activated"
-
-];
-
+if(command === "mood"){
 
 return interaction.reply(
-`Beloved mood: ${moods[Math.floor(Math.random()*moods.length)]}`
+"💖 Beloved mood: 50% cute, 50% chaos"
 );
 
 }
@@ -418,15 +425,15 @@ return interaction.reply(
 
 // ASK
 
-if(command==="ask"){
+if(command === "ask"){
 
 const answers=[
 
 "Maybe 👀",
-"Ask the pigeons",
-"Beloved says yes",
-"Absolutely not 💀",
-"I have no idea but I support you"
+"Ask again later",
+"Absolutely",
+"No 💀",
+"Beloved approves"
 
 ];
 
@@ -439,8 +446,70 @@ answers[Math.floor(Math.random()*answers.length)]
 
 
 
+// 8BALL
+
+if(command === "8ball"){
+
+const answers=[
+
+"Yes",
+"No",
+"Probably",
+"Definitely",
+"Ask your toaster"
+
+];
+
+
+return interaction.reply(
+`🎱 ${answers[Math.floor(Math.random()*answers.length)]}`
+);
+
+}
+
+
+
+// RATE
+
+if(command === "rate"){
+
+const user =
+interaction.options.getUser("user");
+
+
+return interaction.reply(
+`⭐ ${user} rating: ${Math.floor(Math.random()*101)}/100`
+);
+
+}
+
+
+
+}
+
+catch(error){
+
+console.error(error);
+
+
+if(!interaction.replied){
+
+await interaction.reply({
+
+content:
+"💀 Beloved broke something",
+
+ephemeral:true
+
 });
 
+}
+
+
+}
+
+
+});
 
 
 
@@ -460,17 +529,18 @@ return;
 if(message.mentions.has(client.user)){
 
 
-message.reply(
-
-[
+const replies=[
 
 "you called? 👀",
 "Beloved has arrived 💖",
 "hello human",
 "another ping? 😭"
 
-][Math.floor(Math.random()*4)]
+];
 
+
+message.reply(
+replies[Math.floor(Math.random()*replies.length)]
 );
 
 
