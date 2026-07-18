@@ -38,7 +38,7 @@ client.once(Events.ClientReady, () => {
     });
 });
 
-client.on(Events.InteractionCreate', async (interaction) => {
+client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName !== 'panic') return;
 
