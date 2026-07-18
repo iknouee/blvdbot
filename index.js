@@ -110,6 +110,17 @@ function progressBar(value, max, length = 10) {
 }
 loadEconomy();
 
+const BELOVED_PINK = 0xFF69B4;
+const CASINO_BANNER_URL = process.env.CASINO_BANNER_URL ||
+    "https://cdn.discordapp.com/attachments/1528086860398596238/1528086930674286662/ChatGPT_Image_Jul_18_2026_06_11_09_PM.png?ex=6a5d055a&is=6a5bb3da&hm=3f7d7332b702c37e54e76a3f794006dc6295605dd779417abd5b765d08cbe374";
+
+function belovedEmbed(title) {
+    return new EmbedBuilder()
+        .setColor(BELOVED_PINK)
+        .setTitle(title)
+        .setImage(CASINO_BANNER_URL);
+}
+
 const SLOT_SYMBOLS = [
     { emoji: "🍒", weight: 28, mult: 3 }, { emoji: "🍋", weight: 24, mult: 4 },
     { emoji: "🍇", weight: 19, mult: 5 }, { emoji: "🔔", weight: 14, mult: 8 },
@@ -128,12 +139,18 @@ function slotGrid(finalRow = null) {
     return rows;
 }
 function renderSlots(rows, title = "SPINNING") {
+    const divider = "━━━━━━━━━━━━━━━━";
     return [
-        "```", "╔═══════════════════╗", `║   ${title.padEnd(15)} ║`, "╠═══════════════════╣",
-        ...rows.map(row => `║  ${row.map(x => x.emoji).join("  │  ")}  ║`),
-        "╠═══════════════════╣", "║   BEL♥VED CASINO  ║", "╚═══════════════════╝", "```"
+        `**${title}**`,
+        divider,
+        rows.map((row, index) => {
+            const marker = index === 1 ? "➤" : "⠀";
+            return `${marker}　${row.map(item => item.emoji).join("　│　")}`;
+        }).join("\n"),
+        divider
     ].join("\n");
 }
+
 function evaluateSlots(row, bet) {
     const [a,b,c] = row;
     if (a.emoji === b.emoji && b.emoji === c.emoji) return { payout: bet * a.mult, label: a.emoji === "👑" ? "ROYAL JACKPOT" : "THREE OF A KIND" };
@@ -168,22 +185,29 @@ function blackjackButtons(id, disabled = false) {
     );
 }
 function blackjackEmbed(game, reveal = false, result = null) {
-    const playerValue = handValue(game.player), dealerValue = reveal ? handValue(game.dealer) : "?";
-    const embed = new EmbedBuilder()
-        .setTitle("🃏 Beloved Blackjack")
-        .setDescription(`**Bet:** ${coins(game.bet)}
+    const playerValue = handValue(game.player);
+    const dealerValue = reveal ? handValue(game.dealer) : "?";
 
-**Dealer** ${reveal ? `— ${dealerValue}` : ""}
-${renderHand(game.dealer, !reveal)}
-
-**You — ${playerValue}**
-${renderHand(game.player)}
-
-${result || "Choose your move."}`)
-        .addFields({ name: "Your HP against bankruptcy", value: progressBar(Math.min(playerValue, 21), 21, 12), inline: false })
-        .setFooter({ text: "Dealer stands on 17 • Blackjack pays 3:2" }).setTimestamp();
-    return embed;
+    return belovedEmbed("🃏 Beloved Blackjack")
+        .setDescription(result || "Choose your move below.")
+        .addFields(
+            {
+                name: `Dealer ${reveal ? `• ${dealerValue}` : "• hidden"}`,
+                value: `> ${renderHand(game.dealer, !reveal)}`,
+                inline: false
+            },
+            {
+                name: `Your hand • ${playerValue}`,
+                value: `> ${renderHand(game.player)}`,
+                inline: false
+            },
+            { name: "Bet", value: coins(game.bet), inline: true },
+            { name: "Status", value: playerValue > 21 ? "Busted 💥" : `${progressBar(Math.min(playerValue, 21), 21, 10)} ${playerValue}/21`, inline: true }
+        )
+        .setFooter({ text: "Dealer stands on 17 • Blackjack pays 3:2" })
+        .setTimestamp();
 }
+
 async function finishBlackjack(interaction, game, reason = "stand") {
     if (game.ended) return;
     game.ended = true;
@@ -1964,111 +1988,304 @@ client.on(Events.InteractionCreate, async interaction => {
         if (command === "balance") {
             const target = interaction.options.getUser("user") || interaction.user;
             const account = getEconomyUser(interaction.guild.id, target.id);
-            return interaction.reply({ embeds: [new EmbedBuilder().setTitle("💰 Beloved Wallet").setThumbnail(target.displayAvatarURL({size:256})).setDescription(`**${target.username}'s money**`).addFields({name:"Wallet",value:coins(account.balance),inline:true},{name:"Bank",value:coins(account.bank),inline:true},{name:"Net worth",value:coins(account.balance+account.bank),inline:true},{name:"Casino won",value:coins(account.totalWon),inline:true},{name:"Casino lost",value:coins(account.totalLost),inline:true}).setFooter({text:"Beloved economy • absolutely not real money"}).setTimestamp()] });
+
+            const embed = belovedEmbed("💗 Beloved Wallet")
+                .setThumbnail(target.displayAvatarURL({ size: 256 }))
+                .setDescription(`### ${target.username}'s purse`)
+                .addFields(
+                    { name: "Pocket", value: `**${coins(account.balance)}**`, inline: true },
+                    { name: "Bank", value: `**${coins(account.bank)}**`, inline: true },
+                    { name: "Net worth", value: `**${coins(account.balance + account.bank)}**`, inline: true },
+                    { name: "Casino wins", value: coins(account.totalWon), inline: true },
+                    { name: "Casino losses", value: coins(account.totalLost), inline: true }
+                )
+                .setFooter({ text: "Beloved coins are for fun only" })
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [embed] });
         }
 
         if (command === "daily") {
-            const account = getEconomyUser(interaction.guild.id, interaction.user.id), cooldown = 24*60*60*1000, left = account.lastDaily + cooldown - Date.now();
-            if (left > 0) return interaction.reply({content:`⏳ Daily already claimed. Come back in **${formatCooldown(left)}**.`,ephemeral:true});
-            const reward = Math.floor(Math.random()*501)+750; account.balance += reward; account.lastDaily = Date.now(); saveEconomy();
-            return interaction.reply({embeds:[new EmbedBuilder().setTitle("🎁 Daily Drop").setDescription(`Beloved handed <@${interaction.user.id}> **${coins(reward)}**.
+            const account = getEconomyUser(interaction.guild.id, interaction.user.id);
+            const cooldown = 24 * 60 * 60 * 1000;
+            const left = account.lastDaily + cooldown - Date.now();
 
-New balance: **${coins(account.balance)}**`).setFooter({text:"Return in 24 hours"}).setTimestamp()]});
+            if (left > 0) {
+                return interaction.reply({ content: `⏳ Daily already claimed. Come back in **${formatCooldown(left)}**.`, ephemeral: true });
+            }
+
+            const reward = Math.floor(Math.random() * 501) + 750;
+            account.balance += reward;
+            account.lastDaily = Date.now();
+            saveEconomy();
+
+            return interaction.reply({
+                embeds: [belovedEmbed("🎁 Daily Pink Drop")
+                    .setDescription(`Beloved slipped <@${interaction.user.id}> a fresh bag of coins.`)
+                    .addFields(
+                        { name: "You received", value: `**${coins(reward)}**`, inline: true },
+                        { name: "New balance", value: `**${coins(account.balance)}**`, inline: true }
+                    )
+                    .setFooter({ text: "Your next gift arrives in 24 hours" })
+                    .setTimestamp()]
+            });
         }
 
         if (command === "work") {
-            const account = getEconomyUser(interaction.guild.id, interaction.user.id), cooldown=30*60*1000, left=account.lastWork+cooldown-Date.now();
-            if(left>0)return interaction.reply({content:`🕒 Your next shift starts in **${formatCooldown(left)}**.`,ephemeral:true});
-            const jobs=["tested suspicious toasters","moderated the Yap Olympics","sold premium air","counted Beloved's pixels","guarded the casino bathroom","became a professional third wheel"];
-            const reward=Math.floor(Math.random()*351)+250; account.balance+=reward;account.lastWork=Date.now();saveEconomy();
-            return interaction.reply(`💼 You **${randomItem(jobs)}** and earned **${coins(reward)}**.
-Balance: **${coins(account.balance)}**`);
+            const account = getEconomyUser(interaction.guild.id, interaction.user.id);
+            const cooldown = 30 * 60 * 1000;
+            const left = account.lastWork + cooldown - Date.now();
+            if (left > 0) return interaction.reply({ content: `🕒 Your next shift starts in **${formatCooldown(left)}**.`, ephemeral: true });
+
+            const jobs = ["tested suspicious toasters", "moderated the Yap Olympics", "sold premium air", "counted Beloved's pixels", "guarded the casino bathroom", "became a professional third wheel"];
+            const job = randomItem(jobs);
+            const reward = Math.floor(Math.random() * 351) + 250;
+            account.balance += reward;
+            account.lastWork = Date.now();
+            saveEconomy();
+
+            return interaction.reply({ embeds: [belovedEmbed("💼 Shift Complete")
+                .setDescription(`You **${job}** and somehow got paid.`)
+                .addFields(
+                    { name: "Pay cheque", value: `**${coins(reward)}**`, inline: true },
+                    { name: "Balance", value: `**${coins(account.balance)}**`, inline: true }
+                )
+                .setFooter({ text: "Another shift unlocks in 30 minutes" })
+                .setTimestamp()] });
         }
 
         if (command === "beg") {
-            const account=getEconomyUser(interaction.guild.id,interaction.user.id),cooldown=10*60*1000,left=account.lastBeg+cooldown-Date.now();
-            if(left>0)return interaction.reply({content:`🥺 Beg again in **${formatCooldown(left)}**.`,ephemeral:true});
-            account.lastBeg=Date.now(); const success=Math.random()<0.75; const reward=success?Math.floor(Math.random()*121)+20:0; account.balance+=reward;saveEconomy();
-            return interaction.reply(success?`🥺 A mysterious millionaire threw you **${coins(reward)}**. Balance: **${coins(account.balance)}**`:`🦗 You begged. The chat went silent. You received **nothing**.`);
+            const account = getEconomyUser(interaction.guild.id, interaction.user.id);
+            const cooldown = 10 * 60 * 1000;
+            const left = account.lastBeg + cooldown - Date.now();
+            if (left > 0) return interaction.reply({ content: `🥺 Beg again in **${formatCooldown(left)}**.`, ephemeral: true });
+
+            account.lastBeg = Date.now();
+            const success = Math.random() < 0.75;
+            const reward = success ? Math.floor(Math.random() * 121) + 20 : 0;
+            account.balance += reward;
+            saveEconomy();
+
+            return interaction.reply({ embeds: [belovedEmbed(success ? "🥺 Pity Coins Secured" : "🦗 Painful Silence")
+                .setDescription(success ? "A suspiciously generous stranger felt bad for you." : "You held out your hand. Everyone looked away.")
+                .addFields(
+                    { name: "Received", value: `**${coins(reward)}**`, inline: true },
+                    { name: "Balance", value: `**${coins(account.balance)}**`, inline: true }
+                )
+                .setFooter({ text: "You may embarrass yourself again in 10 minutes" })
+                .setTimestamp()] });
         }
 
         if (command === "pay") {
-            const target=interaction.options.getUser("user"), amount=interaction.options.getInteger("amount");
-            if(target.bot||target.id===interaction.user.id)return interaction.reply({content:"You cannot pay that account.",ephemeral:true});
-            const sender=getEconomyUser(interaction.guild.id,interaction.user.id),receiver=getEconomyUser(interaction.guild.id,target.id);
-            if(sender.balance<amount)return interaction.reply({content:`You only have ${coins(sender.balance)}.`,ephemeral:true});
-            sender.balance-=amount;receiver.balance+=amount;saveEconomy();
-            return interaction.reply(`💸 <@${interaction.user.id}> sent <@${target.id}> **${coins(amount)}**.`);
+            const target = interaction.options.getUser("user");
+            const amount = interaction.options.getInteger("amount");
+            if (target.bot || target.id === interaction.user.id) return interaction.reply({ content: "You cannot pay that account.", ephemeral: true });
+
+            const sender = getEconomyUser(interaction.guild.id, interaction.user.id);
+            const receiver = getEconomyUser(interaction.guild.id, target.id);
+            if (sender.balance < amount) return interaction.reply({ content: `You only have ${coins(sender.balance)}.`, ephemeral: true });
+
+            sender.balance -= amount;
+            receiver.balance += amount;
+            saveEconomy();
+
+            return interaction.reply({ embeds: [belovedEmbed("💸 Coin Transfer")
+                .setDescription(`<@${interaction.user.id}> sent <@${target.id}> some Beloved coins.`)
+                .addFields(
+                    { name: "Amount", value: `**${coins(amount)}**`, inline: true },
+                    { name: "Your balance", value: `**${coins(sender.balance)}**`, inline: true }
+                )
+                .setTimestamp()] });
         }
 
         if (command === "coinleaderboard") {
-            const prefix=`${interaction.guild.id}:`; const rows=Object.entries(economyData.users).filter(([k])=>k.startsWith(prefix)).map(([k,v])=>({id:k.split(":")[1],total:v.balance+v.bank})).sort((a,b)=>b.total-a.total).slice(0,10);
-            const description=rows.length?rows.map((r,i)=>`${["🥇","🥈","🥉"][i]||`**${i+1}.**`} <@${r.id}> — **${coins(r.total)}**`).join("\n"):"Nobody has opened a wallet yet.";
-            return interaction.reply({embeds:[new EmbedBuilder().setTitle("🏆 Beloved Rich List").setDescription(description).setFooter({text:"Wealth may vanish inside /slots"}).setTimestamp()],allowedMentions:{parse:[]}});
+            const prefix = `${interaction.guild.id}:`;
+            const rows = Object.entries(economyData.users)
+                .filter(([key]) => key.startsWith(prefix))
+                .map(([key, value]) => ({ id: key.split(":")[1], total: value.balance + value.bank }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 10);
+
+            const description = rows.length
+                ? rows.map((row, index) => `${["🥇", "🥈", "🥉"][index] || `**${index + 1}.**`} <@${row.id}>　**${coins(row.total)}**`).join("\n")
+                : "Nobody has opened a wallet yet.";
+
+            return interaction.reply({
+                embeds: [belovedEmbed("👑 Beloved Rich List")
+                    .setDescription(description)
+                    .setFooter({ text: "Rich today, destroyed by slots tomorrow" })
+                    .setTimestamp()],
+                allowedMentions: { parse: [] }
+            });
         }
 
         if (command === "slots") {
-            const bet=interaction.options.getInteger("bet"),account=getEconomyUser(interaction.guild.id,interaction.user.id),lock=economyKey(interaction.guild.id,interaction.user.id);
-            if(!clampBet(account.balance,bet))return interaction.reply({content:`Bet must be at least 10 and no more than your ${coins(account.balance)} balance.`,ephemeral:true});
-            if(economyLocks.has(lock))return interaction.reply({content:"🎰 Your previous spin is still moving.",ephemeral:true});
-            economyLocks.add(lock);account.balance-=bet;saveEconomy();
-            await interaction.reply({
-                embeds: [
-                    new EmbedBuilder()
-                        .setTitle("🎰 Beloved Deluxe Slots")
-                        .setDescription(renderSlots(slotGrid(), "SPINNING...") + `\n**Bet:** ${coins(bet)}\nThe reels are moving...`)
-                        .setFooter({ text: "🍒 3x • 🔔 8x • 7️⃣ 20x • 👑 50x" })
-                ]
-            });
-            try {
-                for(let frame=0;frame<6;frame++){await new Promise(r=>setTimeout(r,650));await interaction.editReply({embeds:[new EmbedBuilder().setTitle("🎰 Beloved Deluxe Slots").setDescription(renderSlots(slotGrid(),frame<5?`SPIN ${frame+1}/6`:"LOCKING...")+`
-**Bet:** ${coins(bet)}
-${"▰".repeat(frame+1)}${"▱".repeat(5-frame)}`).setFooter({text:"The reels are definitely not rigged. Probably."})]});}
-                const finalRow=[weightedSlotSymbol(),weightedSlotSymbol(),weightedSlotSymbol()],grid=slotGrid(finalRow),result=evaluateSlots(finalRow,bet); account.balance+=result.payout;
-                if(result.payout>bet)account.totalWon+=result.payout-bet;else account.totalLost+=bet-result.payout;saveEconomy();
-                const net=result.payout-bet,word=net>0?`You won **${coins(net)} profit**!`:net===0?"Your bet was returned.":`You lost **${coins(-net)}**.`;
-                await interaction.editReply({embeds:[new EmbedBuilder().setTitle(result.payout?"🎉 SLOT WIN!":"💀 THE HOUSE ATE YOUR COINS").setDescription(renderSlots(grid,result.label)+`
-${word}
+            const bet = interaction.options.getInteger("bet");
+            const account = getEconomyUser(interaction.guild.id, interaction.user.id);
+            const lock = economyKey(interaction.guild.id, interaction.user.id);
 
-**Payout:** ${coins(result.payout)}
-**Balance:** ${coins(account.balance)}`).setFooter({text:result.payout?"Beloved heard coins screaming.":"One more spin will definitely fix everything. (It won't.)"}).setTimestamp()]});
-            } finally { economyLocks.delete(lock); }
+            if (!clampBet(account.balance, bet)) return interaction.reply({ content: `Bet must be at least 10 and no more than your ${coins(account.balance)} balance.`, ephemeral: true });
+            if (economyLocks.has(lock)) return interaction.reply({ content: "🎰 Your previous spin is still moving.", ephemeral: true });
+
+            economyLocks.add(lock);
+            account.balance -= bet;
+            saveEconomy();
+
+            await interaction.reply({
+                embeds: [belovedEmbed("🎰 Beloved Pink Slots")
+                    .setDescription(renderSlots(slotGrid(), "REELS SPINNING"))
+                    .addFields(
+                        { name: "Bet", value: `**${coins(bet)}**`, inline: true },
+                        { name: "Balance", value: `**${coins(account.balance)}**`, inline: true },
+                        { name: "Progress", value: "▰▱▱▱▱▱", inline: false }
+                    )
+                    .setFooter({ text: "🍒 3x • 🔔 8x • 7️⃣ 20x • 👑 50x" })]
+            });
+
+            try {
+                for (let frame = 0; frame < 6; frame++) {
+                    await new Promise(resolve => setTimeout(resolve, 650));
+                    await interaction.editReply({
+                        embeds: [belovedEmbed("🎰 Beloved Pink Slots")
+                            .setDescription(renderSlots(slotGrid(), frame < 5 ? `SPINNING • ${frame + 1}/6` : "REELS LOCKING"))
+                            .addFields(
+                                { name: "Bet", value: `**${coins(bet)}**`, inline: true },
+                                { name: "Balance", value: `**${coins(account.balance)}**`, inline: true },
+                                { name: "Progress", value: `${"▰".repeat(frame + 1)}${"▱".repeat(5 - frame)}`, inline: false }
+                            )
+                            .setFooter({ text: "The reels are definitely not plotting against you" })]
+                    });
+                }
+
+                const finalRow = [weightedSlotSymbol(), weightedSlotSymbol(), weightedSlotSymbol()];
+                const grid = slotGrid(finalRow);
+                const result = evaluateSlots(finalRow, bet);
+                account.balance += result.payout;
+
+                if (result.payout > bet) account.totalWon += result.payout - bet;
+                else account.totalLost += bet - result.payout;
+                saveEconomy();
+
+                const net = result.payout - bet;
+                const title = net > 0 ? "💖 BIG PINK WIN" : net === 0 ? "🤝 BET RETURNED" : "💔 THE HOUSE WON";
+                const outcome = net > 0 ? `You made **${coins(net)} profit**.` : net === 0 ? "No profit, no loss. Your coins survived." : `You lost **${coins(-net)}**.`;
+
+                await interaction.editReply({
+                    embeds: [belovedEmbed(title)
+                        .setDescription(renderSlots(grid, result.label))
+                        .addFields(
+                            { name: "Result", value: outcome, inline: false },
+                            { name: "Payout", value: `**${coins(result.payout)}**`, inline: true },
+                            { name: "Balance", value: `**${coins(account.balance)}**`, inline: true }
+                        )
+                        .setFooter({ text: net > 0 ? "Beloved heard your coins celebrating" : "The machine thanks you for your donation" })
+                        .setTimestamp()]
+                });
+            } finally {
+                economyLocks.delete(lock);
+            }
             return;
         }
 
         if (command === "coinflip") {
-            const choice=interaction.options.getString("choice"),bet=interaction.options.getInteger("bet"),account=getEconomyUser(interaction.guild.id,interaction.user.id);
-            if(!clampBet(account.balance,bet))return interaction.reply({content:`Invalid bet. Balance: ${coins(account.balance)}`,ephemeral:true});
-            account.balance-=bet;const result=Math.random()<.5?"heads":"tails",win=result===choice;if(win){account.balance+=bet*2;account.totalWon+=bet}else account.totalLost+=bet;saveEconomy();
-            return interaction.reply({embeds:[new EmbedBuilder().setTitle("🪙 Coin Flip").setDescription(`The coin spins through the air...
+            const choice = interaction.options.getString("choice");
+            const bet = interaction.options.getInteger("bet");
+            const account = getEconomyUser(interaction.guild.id, interaction.user.id);
+            if (!clampBet(account.balance, bet)) return interaction.reply({ content: `Invalid bet. Balance: ${coins(account.balance)}`, ephemeral: true });
 
-# ${result==="heads"?"👑 HEADS":"🦅 TAILS"}
+            account.balance -= bet;
+            const result = Math.random() < 0.5 ? "heads" : "tails";
+            const win = result === choice;
+            if (win) { account.balance += bet * 2; account.totalWon += bet; }
+            else account.totalLost += bet;
+            saveEconomy();
 
-${win?`🏆 You won **${coins(bet)} profit**!`:`💀 You lost **${coins(bet)}**.`}
-Balance: **${coins(account.balance)}**`).setTimestamp()]});
+            return interaction.reply({
+                embeds: [belovedEmbed(win ? "💖 Coin Flip Win" : "💔 Coin Flip Loss")
+                    .setDescription(`# ${result === "heads" ? "👑 HEADS" : "🦅 TAILS"}`)
+                    .addFields(
+                        { name: "Your call", value: choice.toUpperCase(), inline: true },
+                        { name: "Result", value: result.toUpperCase(), inline: true },
+                        { name: win ? "Profit" : "Lost", value: `**${coins(bet)}**`, inline: true },
+                        { name: "Balance", value: `**${coins(account.balance)}**`, inline: false }
+                    )
+                    .setTimestamp()]
+            });
         }
 
         if (command === "roulette") {
-            const choice=interaction.options.getString("choice"),bet=interaction.options.getInteger("bet"),account=getEconomyUser(interaction.guild.id,interaction.user.id);
-            if(!clampBet(account.balance,bet))return interaction.reply({content:`Invalid bet. Balance: ${coins(account.balance)}`,ephemeral:true});
-            account.balance-=bet;await interaction.reply({embeds:[new EmbedBuilder().setTitle("🎡 Roulette Wheel").setDescription(`The wheel begins spinning...\n\n🔴 ⚫ 🟢 ⚫ 🔴 ⚫`).setFooter({text:`Bet: ${coins(bet)} on ${choice}`})]});
-            for(let i=0;i<4;i++){await new Promise(r=>setTimeout(r,700));await interaction.editReply({embeds:[new EmbedBuilder().setTitle("🎡 Roulette Wheel").setDescription(`${"⚫ 🔴 ".repeat(i+2)}
+            const choice = interaction.options.getString("choice");
+            const bet = interaction.options.getInteger("bet");
+            const account = getEconomyUser(interaction.guild.id, interaction.user.id);
+            if (!clampBet(account.balance, bet)) return interaction.reply({ content: `Invalid bet. Balance: ${coins(account.balance)}`, ephemeral: true });
 
-${"•".repeat(i+1)} spinning${".".repeat(i+1)}`).setFooter({text:"No refunds after dramatic suspense begins"})]});}
-            const roll=Math.floor(Math.random()*37),result=roll===0?"green":([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(roll)?"red":"black"),mult=result==="green"?14:2,win=choice===result,payout=win?bet*mult:0;account.balance+=payout;if(win)account.totalWon+=payout-bet;else account.totalLost+=bet;saveEconomy();
-            return interaction.editReply({embeds:[new EmbedBuilder().setTitle(win?"🎉 ROULETTE WIN":"💀 ROULETTE LOSS").setDescription(`# ${result==="red"?"🔴":result==="black"?"⚫":"🟢"} ${roll}
+            account.balance -= bet;
+            await interaction.reply({
+                embeds: [belovedEmbed("🎡 Beloved Roulette")
+                    .setDescription("### 🔴　⚫　🟢　⚫　🔴　⚫\nThe wheel is spinning...")
+                    .addFields(
+                        { name: "Your colour", value: choice.toUpperCase(), inline: true },
+                        { name: "Bet", value: `**${coins(bet)}**`, inline: true }
+                    )
+                    .setFooter({ text: "No refunds after the dramatic suspense begins" })]
+            });
 
-${win?`You won **${coins(payout-bet)} profit**!`:`You lost **${coins(bet)}**.`}
-Balance: **${coins(account.balance)}**`).setTimestamp()]});
+            for (let i = 0; i < 4; i++) {
+                await new Promise(resolve => setTimeout(resolve, 700));
+                await interaction.editReply({
+                    embeds: [belovedEmbed("🎡 Beloved Roulette")
+                        .setDescription(`### ${"⚫　🔴　".repeat(i + 2)}\n${"●".repeat(i + 1)}${"○".repeat(4 - i)}　spinning${".".repeat(i + 1)}`)
+                        .addFields(
+                            { name: "Your colour", value: choice.toUpperCase(), inline: true },
+                            { name: "Bet", value: `**${coins(bet)}**`, inline: true }
+                        )
+                        .setFooter({ text: "The ball is deciding your financial future" })]
+                });
+            }
+
+            const roll = Math.floor(Math.random() * 37);
+            const result = roll === 0 ? "green" : ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(roll) ? "red" : "black");
+            const multiplier = result === "green" ? 14 : 2;
+            const win = choice === result;
+            const payout = win ? bet * multiplier : 0;
+            account.balance += payout;
+            if (win) account.totalWon += payout - bet;
+            else account.totalLost += bet;
+            saveEconomy();
+
+            const colourEmoji = result === "red" ? "🔴" : result === "black" ? "⚫" : "🟢";
+            return interaction.editReply({
+                embeds: [belovedEmbed(win ? "💖 Roulette Win" : "💔 Roulette Loss")
+                    .setDescription(`# ${colourEmoji} ${roll}`)
+                    .addFields(
+                        { name: "Landed on", value: result.toUpperCase(), inline: true },
+                        { name: win ? "Profit" : "Lost", value: `**${coins(win ? payout - bet : bet)}**`, inline: true },
+                        { name: "Balance", value: `**${coins(account.balance)}**`, inline: false }
+                    )
+                    .setTimestamp()]
+            });
         }
 
         if (command === "blackjack") {
-            const bet=interaction.options.getInteger("bet"),account=getEconomyUser(interaction.guild.id,interaction.user.id);
-            if(!clampBet(account.balance,bet))return interaction.reply({content:`Invalid bet. Balance: ${coins(account.balance)}`,ephemeral:true});
-            const existing=[...activeBlackjackGames.values()].find(g=>g.guildId===interaction.guild.id&&g.userId===interaction.user.id&&!g.ended);if(existing)return interaction.reply({content:"🃏 Finish your current blackjack hand first.",ephemeral:true});
-            account.balance-=bet;saveEconomy();const deck=createDeck(),game={id:interaction.id,guildId:interaction.guild.id,userId:interaction.user.id,bet,deck,player:[deck.pop(),deck.pop()],dealer:[deck.pop(),deck.pop()],ended:false};activeBlackjackGames.set(game.id,game);
-            await interaction.reply({embeds:[blackjackEmbed(game)],components:[blackjackButtons(game.id)]});
-            if(handValue(game.player)===21){await new Promise(r=>setTimeout(r,800));const fake={...interaction,update:payload=>interaction.editReply(payload)};return finishBlackjack(fake,game,"stand");}
+            const bet = interaction.options.getInteger("bet");
+            const account = getEconomyUser(interaction.guild.id, interaction.user.id);
+            if (!clampBet(account.balance, bet)) return interaction.reply({ content: `Invalid bet. Balance: ${coins(account.balance)}`, ephemeral: true });
+
+            const existing = [...activeBlackjackGames.values()].find(game => game.guildId === interaction.guild.id && game.userId === interaction.user.id && !game.ended);
+            if (existing) return interaction.reply({ content: "🃏 Finish your current blackjack hand first.", ephemeral: true });
+
+            account.balance -= bet;
+            saveEconomy();
+            const deck = createDeck();
+            const game = { id: interaction.id, guildId: interaction.guild.id, userId: interaction.user.id, bet, deck, player: [deck.pop(), deck.pop()], dealer: [deck.pop(), deck.pop()], ended: false };
+            activeBlackjackGames.set(game.id, game);
+
+            await interaction.reply({ embeds: [blackjackEmbed(game)], components: [blackjackButtons(game.id)] });
+            if (handValue(game.player) === 21) {
+                await new Promise(resolve => setTimeout(resolve, 800));
+                const fake = { ...interaction, update: payload => interaction.editReply(payload) };
+                return finishBlackjack(fake, game, "stand");
+            }
             return;
         }
 
