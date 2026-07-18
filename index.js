@@ -31,8 +31,17 @@ const client = new Client({
 });
 
 
+// Users allowed to use panic commands
+const allowedUsers = [
+    '756261049082314903',
+    '1314713632457752636',
+    '1458194798589509729',
+];
+
+
 // Bot ready
 client.once(Events.ClientReady, () => {
+
     console.log(`Beloved ready as ${client.user.tag}`);
 
     client.user.setPresence({
@@ -44,10 +53,11 @@ client.once(Events.ClientReady, () => {
         ],
         status: 'online',
     });
+
 });
 
 
-// Random replies when pinged
+// Ping replies
 client.on(Events.MessageCreate, async (message) => {
 
     if (message.author.bot) return;
@@ -59,79 +69,63 @@ client.on(Events.MessageCreate, async (message) => {
             "hey cutie 😌",
             "you called? 👀",
             "yes boss? 🫡",
-            "hello there ✨",
-            "did someone say my name? 😭",
+            "did someone summon me? 😭",
             "beep boop, i'm alive 🤖",
             "what's up legend?",
-            "sup 😎",
             "i was just chilling lol",
             "need something? 👀",
-            "yo yo yo",
-            "hello handsome/beautiful 😌",
-            "at your service 🫡",
-            "omg hi",
-            "don't ping me unless you love me 💅",
             "i have been summoned ✨",
-            "the bot has arrived 🚨",
-            "hey hey 👋",
-            "what can i do for you?",
-            "you rang? 📞",
             "bro woke me up 💀",
-            "i'm literally just code 😭",
-            "another ping? seriously? 💀",
             "my CPU is blushing rn",
             "404: chill not found",
-            "i have feelings (probably)",
+            "welcome to the boulevard its beloved 🖤",
             "blvd forever 🖤",
-            "welcome to the boulevard",
-            "verified gang rise up",
-            "panic mode ready 🚨"
+            "panic mode ready 🚨",
+            "another ping? seriously? 💀"
         ];
 
 
-        const randomReply = replies[
+        const reply = replies[
             Math.floor(Math.random() * replies.length)
         ];
 
 
-        await message.reply(randomReply);
+        await message.reply(reply);
     }
 
 });
 
 
-
 // Slash commands
 client.on(Events.InteractionCreate, async (interaction) => {
+
 
     if (!interaction.isChatInputCommand()) return;
 
 
 
-    // =====================
     // PANIC
-    // =====================
     if (interaction.commandName === 'panic') {
 
 
-        if (!interaction.memberPermissions.has('Administrator')) {
+        if (!allowedUsers.includes(interaction.user.id)) {
+
             return interaction.reply({
-                content: 'Admins only.',
+                content: "❌ You don't have permission to use panic mode.",
                 ephemeral: true,
             });
+
         }
 
 
-        await interaction.reply({
-            content: '🚨 Locking all channels...',
-        });
+        await interaction.reply("🚨 Locking all channels...");
 
 
         let locked = 0;
 
 
         const verifiedRole = interaction.guild.roles.cache.find(
-            role => role.name.toLowerCase() === 'verified'
+            role => role.name.toLowerCase() === "verified"
         );
 
 
@@ -172,46 +166,43 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 
             } catch (err) {
-                console.error(`Failed locking ${channel.name}`, err);
+                console.log(err);
             }
+
         }
 
 
-        await interaction.editReply({
-            content:
-                `🚨 Panic Mode Enabled\n\n` +
-                `🔒 Channels Locked: ${locked}\n` +
-                `👥 Verified role locked: ${verifiedRole ? 'Yes' : 'No'}`
-        });
+        await interaction.editReply(
+            `🚨 Panic Mode Enabled\n🔒 Locked ${locked} channels`
+        );
 
     }
 
 
 
-    // =====================
+
     // UNPANIC
-    // =====================
     if (interaction.commandName === 'unpanic') {
 
 
-        if (!interaction.memberPermissions.has('Administrator')) {
+        if (!allowedUsers.includes(interaction.user.id)) {
+
             return interaction.reply({
-                content: 'Admins only.',
+                content: "❌ You don't have permission to use unpanic.",
                 ephemeral: true,
             });
+
         }
 
 
-        await interaction.reply({
-            content: '🔓 Unlocking all channels...',
-        });
+        await interaction.reply("🔓 Unlocking channels...");
 
 
         let unlocked = 0;
 
 
         const verifiedRole = interaction.guild.roles.cache.find(
-            role => role.name.toLowerCase() === 'verified'
+            role => role.name.toLowerCase() === "verified"
         );
 
 
@@ -252,21 +243,48 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 
             } catch (err) {
-                console.error(`Failed unlocking ${channel.name}`, err);
+                console.log(err);
             }
+
         }
 
 
-        await interaction.editReply({
-            content:
-                `🔓 Panic Mode Disabled\n\n` +
-                `Unlocked Channels: ${unlocked}`
-        });
+        await interaction.editReply(
+            `🔓 Panic Mode Disabled\nUnlocked ${unlocked} channels`
+        );
 
     }
 
-});
 
+
+
+
+    // VIBE COMMAND
+    if (interaction.commandName === "vibe") {
+
+
+        const vibes = [
+            "🖤 Beloved is feeling dangerous today",
+            "🔥 The boulevard is alive",
+            "😎 Maximum vibes detected",
+            "💀 Someone let me cook",
+            "✨ Certified blvd moment",
+            "🚨 Chaos levels: acceptable",
+            "🫡 Beloved reporting for duty"
+        ];
+
+
+        const vibe = vibes[
+            Math.floor(Math.random() * vibes.length)
+        ];
+
+
+        await interaction.reply(vibe);
+
+    }
+
+
+});
 
 
 client.login(process.env.TOKEN);
