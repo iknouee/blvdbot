@@ -1,0 +1,1 @@
+{"name":"beloved","version":"1.0.0","main":"index.js","scripts":{"start":"node index.js","deploy":"node deploy-commands.js"},"dependencies":{"discord.js":"^14.21.0","dotenv":"^17.2.1"}}

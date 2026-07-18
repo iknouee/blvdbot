@@ -1,0 +1,1 @@
+Run npm install, copy .env.example to .env, fill values, run npm run deploy then npm start.

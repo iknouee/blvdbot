@@ -1,0 +1,1 @@
+require('dotenv').config();const {REST,Routes,SlashCommandBuilder}=require('discord.js');const cmd=[new SlashCommandBuilder().setName('panic').setDescription('Lock all channels')].map(c=>c.toJSON());new REST({version:'10'}).setToken(process.env.TOKEN).put(Routes.applicationGuildCommands(process.env.CLIENT_ID,process.env.GUILD_ID),{body:cmd}).then(()=>console.log('done'));
