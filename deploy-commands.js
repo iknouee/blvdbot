@@ -1,17 +1,6 @@
 require("dotenv").config();
 
-const {
-    REST,
-    Routes,
-    SlashCommandBuilder,
-    PermissionFlagsBits,
-    ChannelType
-} = require("discord.js");
-
-
-// ==================================================
-// BELOVED COMMANDS
-// ==================================================
+const { REST, Routes, SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require("discord.js");
 
 const commands = [
     new SlashCommandBuilder()
@@ -111,6 +100,41 @@ const commands = [
                 .setDescription("Person")
                 .setRequired(true)
         ),
+
+
+
+    new SlashCommandBuilder()
+        .setName("balance").setDescription("Check your Beloved coin balance")
+        .addUserOption(option => option.setName("user").setDescription("Whose balance?").setRequired(false)),
+
+    new SlashCommandBuilder().setName("daily").setDescription("Claim your daily Beloved coins"),
+    new SlashCommandBuilder().setName("work").setDescription("Work a questionable job for coins"),
+    new SlashCommandBuilder().setName("beg").setDescription("Beg Beloved for spare change"),
+
+    new SlashCommandBuilder()
+        .setName("pay").setDescription("Send coins to another person")
+        .addUserOption(option => option.setName("user").setDescription("Who gets paid?").setRequired(true))
+        .addIntegerOption(option => option.setName("amount").setDescription("Amount to send").setMinValue(1).setRequired(true)),
+
+    new SlashCommandBuilder().setName("coinleaderboard").setDescription("See the richest people in the server"),
+
+    new SlashCommandBuilder()
+        .setName("slots").setDescription("Spin Beloved's animated slot machine")
+        .addIntegerOption(option => option.setName("bet").setDescription("Bet 10 or more coins").setMinValue(10).setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("coinflip").setDescription("Bet on heads or tails")
+        .addStringOption(option => option.setName("choice").setDescription("Heads or tails").setRequired(true).addChoices({name:"Heads",value:"heads"},{name:"Tails",value:"tails"}))
+        .addIntegerOption(option => option.setName("bet").setDescription("Your bet").setMinValue(10).setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("roulette").setDescription("Play casino roulette")
+        .addStringOption(option => option.setName("choice").setDescription("Pick a colour").setRequired(true).addChoices({name:"Red (2x)",value:"red"},{name:"Black (2x)",value:"black"},{name:"Green (14x)",value:"green"}))
+        .addIntegerOption(option => option.setName("bet").setDescription("Your bet").setMinValue(10).setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("blackjack").setDescription("Play interactive blackjack against Beloved")
+        .addIntegerOption(option => option.setName("bet").setDescription("Your bet").setMinValue(10).setRequired(true)),
 
     new SlashCommandBuilder()
         .setName("smashorpass")
@@ -255,29 +279,13 @@ const commands = [
 ];
 
 
-// ==================================================
-// DEPLOY
-// ==================================================
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
 (async () => {
-    try {
-        console.log("💖 Deploying Beloved commands...");
-
-        // Set GUILD_ID in .env for instant testing.
-        // Without GUILD_ID, commands are deployed globally and can take time to appear.
-        const route = process.env.GUILD_ID
-            ? Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID)
-            : Routes.applicationCommands(process.env.CLIENT_ID);
-
-        await rest.put(route, {
-            body: commands.map(command => command.toJSON())
-        });
-
-        console.log(`✅ Beloved commands deployed ${process.env.GUILD_ID ? "to the test server" : "globally"}`);
-    } catch (error) {
-        console.error("❌ Command deployment failed:", error);
-        process.exitCode = 1;
-    }
+  try {
+    console.log("💖 Deploying Beloved commands...");
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands.map(command => command.toJSON()) });
+    console.log("✅ Beloved commands deployed");
+  } catch (error) { console.error("❌ Command deployment failed:", error); }
 })();
