@@ -979,6 +979,163 @@ async function finishSmashOrPassGame(gameId) {
     }
 }
 
+
+// ==================================================
+// EXTRA CHAOS GAMES
+// ==================================================
+
+const activeMarriages = new Map();
+const activeCourts = new Map();
+const activeFights = new Map();
+
+function disableRow(row) {
+    return new ActionRowBuilder().addComponents(
+        row.components.map(component =>
+            ButtonBuilder.from(component).setDisabled(true)
+        )
+    );
+}
+
+function buildMarriageEmbed(game, result = null) {
+    const embed = new EmbedBuilder()
+        .setTitle(result ? "💍 Proposal Results" : "💍 A Very Serious Proposal")
+        .setDescription(
+            `<@${game.proposerId}> has proposed to <@${game.targetId}>!\n\n` +
+            (result || "Will they accept this legally questionable Discord marriage?")
+        )
+        .setFooter({ text: result ? "Beloved has witnessed everything." : "Only the proposed user can answer." })
+        .setTimestamp();
+    return embed;
+}
+
+function buildMarriageButtons(gameId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`marry:accept:${gameId}`)
+            .setLabel("Accept")
+            .setEmoji("💖")
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setCustomId(`marry:reject:${gameId}`)
+            .setLabel("Reject")
+            .setEmoji("💔")
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(disabled)
+    );
+}
+
+function buildCourtButtons(gameId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`court:guilty:${gameId}`)
+            .setLabel("Guilty")
+            .setEmoji("🔨")
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setCustomId(`court:notguilty:${gameId}`)
+            .setLabel("Not Guilty")
+            .setEmoji("😇")
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(disabled)
+    );
+}
+
+function buildCourtEmbed(game, ended = false) {
+    const guilty = [...game.votes.values()].filter(v => v === "guilty").length;
+    const notGuilty = [...game.votes.values()].filter(v => v === "notguilty").length;
+    const embed = new EmbedBuilder()
+        .setTitle(ended ? "⚖️ Court Verdict" : "⚖️ Beloved Court Is Now In Session")
+        .setDescription(
+            `**Defendant:** <@${game.accusedId}>\n` +
+            `**Accused by:** <@${game.hostId}>\n` +
+            `**Charge:** ${game.charge}`
+        )
+        .addFields(
+            { name: "🔨 Guilty", value: `${guilty} vote${guilty === 1 ? "" : "s"}`, inline: true },
+            { name: "😇 Not Guilty", value: `${notGuilty} vote${notGuilty === 1 ? "" : "s"}`, inline: true }
+        )
+        .setFooter({ text: ended ? "The jury has spoken. Receipts are public." : "One vote each. You may change your vote." })
+        .setTimestamp();
+    if (!ended) {
+        embed.addFields({ name: "⏳ Court closes", value: `<t:${Math.floor(game.endsAt / 1000)}:R>` });
+    }
+    return embed;
+}
+
+async function finishCourt(gameId) {
+    const game = activeCourts.get(gameId);
+    if (!game || game.ended) return;
+    game.ended = true;
+    activeCourts.delete(gameId);
+
+    const guilty = [];
+    const notGuilty = [];
+    for (const [id, vote] of game.votes) {
+        (vote === "guilty" ? guilty : notGuilty).push(id);
+    }
+    const verdict = guilty.length > notGuilty.length
+        ? "🔨 **GUILTY!** Sentenced to public embarrassment."
+        : notGuilty.length > guilty.length
+            ? "😇 **NOT GUILTY!** The defendant walks free."
+            : "🤝 **HUNG JURY!** Everyone argued and achieved nothing.";
+
+    const embed = buildCourtEmbed(game, true)
+        .addFields(
+            { name: "📢 Verdict", value: verdict },
+            { name: `🔨 Guilty voters (${guilty.length})`, value: formatVoterList(guilty) },
+            { name: `😇 Not Guilty voters (${notGuilty.length})`, value: formatVoterList(notGuilty) }
+        );
+    await game.message.edit({ embeds: [embed], components: [buildCourtButtons(gameId, true)] }).catch(() => {});
+}
+
+function buildFightButtons(gameId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`fight:punch:${gameId}`).setLabel("Punch").setEmoji("👊").setStyle(ButtonStyle.Primary).setDisabled(disabled),
+        new ButtonBuilder().setCustomId(`fight:block:${gameId}`).setLabel("Block").setEmoji("🛡️").setStyle(ButtonStyle.Secondary).setDisabled(disabled),
+        new ButtonBuilder().setCustomId(`fight:special:${gameId}`).setLabel("Special").setEmoji("💥").setStyle(ButtonStyle.Danger).setDisabled(disabled)
+    );
+}
+
+function healthBar(hp) {
+    const full = Math.max(0, Math.min(10, Math.round(hp / 10)));
+    return "█".repeat(full) + "░".repeat(10 - full);
+}
+
+function buildFightEmbed(game, ended = false, finalText = null) {
+    const one = game.players[0];
+    const two = game.players[1];
+    return new EmbedBuilder()
+        .setTitle(ended ? "🏆 Fight Finished" : "⚔️ Beloved Fight Club")
+        .setDescription(
+            `<@${one}>  **${game.hp[one]} HP**\n${healthBar(game.hp[one])}\n\n` +
+            `<@${two}>  **${game.hp[two]} HP**\n${healthBar(game.hp[two])}\n\n` +
+            (finalText || `🎯 **Current turn:** <@${game.turn}>\n${game.lastAction}`)
+        )
+        .setFooter({ text: ended ? "Beloved accepts no liability for hurt feelings." : "Punch, block, or use your special attack." })
+        .setTimestamp();
+}
+
+function buildFightInviteButtons(gameId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`fightaccept:yes:${gameId}`).setLabel("Accept Fight").setEmoji("⚔️").setStyle(ButtonStyle.Success).setDisabled(disabled),
+        new ButtonBuilder().setCustomId(`fightaccept:no:${gameId}`).setLabel("Run Away").setEmoji("🏃").setStyle(ButtonStyle.Danger).setDisabled(disabled)
+    );
+}
+
+const cancelReasons = [
+    "putting milk in before cereal", "typing ‘k’ after a five-paragraph message",
+    "stealing fries and calling it tax", "having 47 unread notifications",
+    "saying ‘one more game’ at 3 AM", "using light mode at full brightness",
+    "laughing before telling the joke", "being emotionally attached to their Wi-Fi router",
+    "leaving people on delivered while actively posting memes", "calling every animal a dog",
+    "owning a suspicious number of charging cables", "saying ‘it is what it is’ after causing the problem",
+    "being too loud in the group chat", "replying ‘who asked’ when nobody asked them either",
+    "losing an argument to autocorrect", "eating the last snack without announcing it"
+];
+
+
 // ==================================================
 // SLASH COMMANDS
 // ==================================================
@@ -1099,6 +1256,32 @@ const commands = [
                 .setMaxValue(300)
                 .setRequired(false)
         ),
+
+    new SlashCommandBuilder()
+        .setName("marry")
+        .setDescription("Propose a totally legitimate Discord marriage")
+        .addUserOption(option => option.setName("user").setDescription("Who are you proposing to?").setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("court")
+        .setDescription("Put someone on trial and let the server vote")
+        .addUserOption(option => option.setName("user").setDescription("The defendant").setRequired(true))
+        .addStringOption(option => option.setName("charge").setDescription("What are they accused of?").setRequired(true).setMaxLength(200))
+        .addIntegerOption(option => option.setName("duration").setDescription("Voting time in seconds (15-300)").setMinValue(15).setMaxValue(300)),
+
+    new SlashCommandBuilder()
+        .setName("fight")
+        .setDescription("Challenge someone to a button battle")
+        .addUserOption(option => option.setName("user").setDescription("Who do you want to fight?").setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("cancel")
+        .setDescription("Cancel someone for completely ridiculous reasons")
+        .addUserOption(option => option.setName("user").setDescription("Who is getting cancelled?").setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("wheel")
+        .setDescription("Spin the wheel and select a random server member"),
 
     new SlashCommandBuilder()
         .setName("conflict")
@@ -1258,9 +1441,86 @@ client.once(Events.ClientReady, readyClient => {
 client.on(Events.InteractionCreate, async interaction => {
     try {
         if (interaction.isButton()) {
-            if (!interaction.customId.startsWith("sop:")) {
-                return;
+            if (interaction.customId.startsWith("marry:")) {
+                const [, choice, gameId] = interaction.customId.split(":");
+                const game = activeMarriages.get(gameId);
+                if (!game || game.ended) return interaction.reply({ content: "This proposal is already over.", ephemeral: true });
+                if (interaction.user.id !== game.targetId) return interaction.reply({ content: "😭 This proposal is not for you.", ephemeral: true });
+                game.ended = true;
+                activeMarriages.delete(gameId);
+                clearTimeout(game.timer);
+                const result = choice === "accept"
+                    ? `💖 <@${game.targetId}> said **YES!**\n\nBeloved now pronounces you chronically online and chronically online.`
+                    : `💔 <@${game.targetId}> said **NO!**\n\n<@${game.proposerId}> has been left at the digital altar.`;
+                return interaction.update({ embeds: [buildMarriageEmbed(game, result)], components: [buildMarriageButtons(gameId, true)] });
             }
+
+            if (interaction.customId.startsWith("court:")) {
+                const [, vote, gameId] = interaction.customId.split(":");
+                const game = activeCourts.get(gameId);
+                if (!game || game.ended || Date.now() >= game.endsAt) return interaction.reply({ content: "⚖️ Court is closed.", ephemeral: true });
+                const previous = game.votes.get(interaction.user.id);
+                game.votes.set(interaction.user.id, vote);
+                await interaction.update({ embeds: [buildCourtEmbed(game)], components: [buildCourtButtons(gameId)] });
+                return interaction.followUp({ content: previous ? `Vote changed to **${vote === "guilty" ? "GUILTY" : "NOT GUILTY"}**.` : "🗳️ Your jury vote is locked in.", ephemeral: true });
+            }
+
+            if (interaction.customId.startsWith("fightaccept:")) {
+                const [, choice, gameId] = interaction.customId.split(":");
+                const game = activeFights.get(gameId);
+                if (!game || game.ended) return interaction.reply({ content: "That challenge is no longer active.", ephemeral: true });
+                if (interaction.user.id !== game.players[1]) return interaction.reply({ content: "This challenge is not for you.", ephemeral: true });
+                clearTimeout(game.inviteTimer);
+                if (choice === "no") {
+                    game.ended = true;
+                    activeFights.delete(gameId);
+                    return interaction.update({ embeds: [new EmbedBuilder().setTitle("🏃 Fight Avoided").setDescription(`<@${game.players[1]}> ran away from <@${game.players[0]}>. Tactical retreat or pure fear?`).setTimestamp()], components: [buildFightInviteButtons(gameId, true)] });
+                }
+                game.started = true;
+                game.turn = game.players[Math.floor(Math.random() * 2)];
+                game.lastAction = "The bell rings. Choose your move!";
+                return interaction.update({ embeds: [buildFightEmbed(game)], components: [buildFightButtons(gameId)] });
+            }
+
+            if (interaction.customId.startsWith("fight:")) {
+                const [, move, gameId] = interaction.customId.split(":");
+                const game = activeFights.get(gameId);
+                if (!game || game.ended || !game.started) return interaction.reply({ content: "This fight is already over.", ephemeral: true });
+                if (!game.players.includes(interaction.user.id)) return interaction.reply({ content: "🍿 Spectators cannot jump into the ring.", ephemeral: true });
+                if (interaction.user.id !== game.turn) return interaction.reply({ content: "⏳ It is not your turn.", ephemeral: true });
+                const attacker = interaction.user.id;
+                const defender = game.players.find(id => id !== attacker);
+                let damage = 0;
+                if (move === "block") {
+                    game.blocking[attacker] = true;
+                    game.lastAction = `🛡️ <@${attacker}> prepares to block the next attack.`;
+                } else if (move === "special") {
+                    if (game.specialUsed[attacker]) return interaction.reply({ content: "💥 You already used your special attack.", ephemeral: true });
+                    game.specialUsed[attacker] = true;
+                    damage = Math.floor(Math.random() * 21) + 20;
+                    game.lastAction = `💥 <@${attacker}> used a special attack for **${damage} damage**!`;
+                } else {
+                    damage = Math.floor(Math.random() * 16) + 8;
+                    game.lastAction = `👊 <@${attacker}> punched <@${defender}> for **${damage} damage**!`;
+                }
+                if (damage > 0) {
+                    if (game.blocking[defender]) {
+                        damage = Math.max(1, Math.floor(damage / 2));
+                        game.blocking[defender] = false;
+                        game.lastAction += ` <@${defender}> blocked, reducing it to **${damage}**.`;
+                    }
+                    game.hp[defender] = Math.max(0, game.hp[defender] - damage);
+                }
+                if (game.hp[defender] <= 0) {
+                    game.ended = true;
+                    activeFights.delete(gameId);
+                    return interaction.update({ embeds: [buildFightEmbed(game, true, `🏆 <@${attacker}> wins!\n💀 <@${defender}> has been folded like a lawn chair.`)], components: [buildFightButtons(gameId, true)] });
+                }
+                game.turn = defender;
+                return interaction.update({ embeds: [buildFightEmbed(game)], components: [buildFightButtons(gameId)] });
+            }
+
+            if (!interaction.customId.startsWith("sop:")) return;
 
             const [, vote, gameId] = interaction.customId.split(":");
             const game = activeSmashOrPassGames.get(gameId);
@@ -1536,6 +1796,90 @@ client.on(Events.InteractionCreate, async interaction => {
             }, duration * 1000);
 
             return;
+        }
+
+        if (command === "marry") {
+            const target = interaction.options.getUser("user");
+            if (target.bot) return interaction.reply({ content: "🤖 Bots are not emotionally available.", ephemeral: true });
+            if (target.id === interaction.user.id) return interaction.reply({ content: "💍 Self-love is important, but you cannot marry yourself here.", ephemeral: true });
+            const gameId = interaction.id;
+            const game = { proposerId: interaction.user.id, targetId: target.id, ended: false, timer: null };
+            activeMarriages.set(gameId, game);
+            await interaction.reply({ embeds: [buildMarriageEmbed(game)], components: [buildMarriageButtons(gameId)], allowedMentions: { users: [target.id, interaction.user.id] } });
+            game.timer = setTimeout(async () => {
+                if (!activeMarriages.has(gameId)) return;
+                game.ended = true;
+                activeMarriages.delete(gameId);
+                await interaction.editReply({ embeds: [buildMarriageEmbed(game, `⏰ <@${game.targetId}> ignored the proposal. Silence is legally considered devastating.`)], components: [buildMarriageButtons(gameId, true)] }).catch(() => {});
+            }, 60_000);
+            return;
+        }
+
+        if (command === "court") {
+            const accused = interaction.options.getUser("user");
+            const charge = interaction.options.getString("charge");
+            const duration = interaction.options.getInteger("duration") || 60;
+            if (accused.bot) return interaction.reply({ content: "🤖 Bots are above Beloved law.", ephemeral: true });
+            const gameId = interaction.id;
+            const game = { id: gameId, accusedId: accused.id, hostId: interaction.user.id, charge, endsAt: Date.now() + duration * 1000, votes: new Map(), ended: false, message: null };
+            await interaction.reply({ embeds: [buildCourtEmbed(game)], components: [buildCourtButtons(gameId)], allowedMentions: { users: [accused.id, interaction.user.id] } });
+            game.message = await interaction.fetchReply();
+            activeCourts.set(gameId, game);
+            setTimeout(() => finishCourt(gameId).catch(console.error), duration * 1000);
+            return;
+        }
+
+        if (command === "fight") {
+            const opponent = interaction.options.getUser("user");
+            if (opponent.bot) return interaction.reply({ content: "🤖 Fighting a bot is how robot uprisings begin.", ephemeral: true });
+            if (opponent.id === interaction.user.id) return interaction.reply({ content: "🥊 You shadowboxed and somehow lost.", ephemeral: true });
+            const gameId = interaction.id;
+            const game = {
+                players: [interaction.user.id, opponent.id], hp: {}, blocking: {}, specialUsed: {},
+                started: false, ended: false, turn: null, lastAction: "", inviteTimer: null
+            };
+            for (const id of game.players) { game.hp[id] = 100; game.blocking[id] = false; game.specialUsed[id] = false; }
+            activeFights.set(gameId, game);
+            await interaction.reply({
+                embeds: [new EmbedBuilder().setTitle("⚔️ Fight Challenge").setDescription(`<@${interaction.user.id}> challenged <@${opponent.id}> to a fight!\n\nDo you accept?`).setFooter({ text: "Challenge expires in 60 seconds." }).setTimestamp()],
+                components: [buildFightInviteButtons(gameId)], allowedMentions: { users: game.players }
+            });
+            game.inviteTimer = setTimeout(async () => {
+                if (!activeFights.has(gameId) || game.started) return;
+                game.ended = true; activeFights.delete(gameId);
+                await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("⏰ Challenge Expired").setDescription(`<@${opponent.id}> did not answer. <@${interaction.user.id}> wins by boredom.`).setTimestamp()], components: [buildFightInviteButtons(gameId, true)] }).catch(() => {});
+            }, 60_000);
+            return;
+        }
+
+        if (command === "cancel") {
+            const target = interaction.options.getUser("user");
+            const reasons = [...cancelReasons].sort(() => Math.random() - 0.5).slice(0, 3);
+            const percentage = Math.floor(Math.random() * 31) + 69;
+            const embed = new EmbedBuilder()
+                .setTitle("🚫 Official Beloved Cancellation Notice")
+                .setThumbnail(target.displayAvatarURL({ size: 256 }))
+                .setDescription(`<@${target.id}> has been **${percentage}% cancelled** for:`)
+                .addFields({ name: "📋 Charges", value: reasons.map((reason, index) => `${index + 1}. ${reason}`).join("\n") })
+                .setFooter({ text: "Appeals may be submitted directly to the nearest toaster." })
+                .setTimestamp();
+            return interaction.reply({ embeds: [embed], allowedMentions: { users: [target.id] } });
+        }
+
+        if (command === "wheel") {
+            await interaction.deferReply();
+            const members = await interaction.guild.members.fetch();
+            const eligible = members.filter(member => !member.user.bot).map(member => member.user);
+            if (!eligible.length) return interaction.editReply("😭 The wheel found nobody.");
+            const selected = eligible[Math.floor(Math.random() * eligible.length)];
+            const fakeSpins = [...eligible].sort(() => Math.random() - 0.5).slice(0, Math.min(5, eligible.length));
+            const embed = new EmbedBuilder()
+                .setTitle("🎡 Beloved's Wheel of Questionable Fate")
+                .setDescription(`The wheel considered...\n${fakeSpins.map(user => `• ${user}`).join("\n")}\n\n🎉 **The chosen one is ${selected}!**`)
+                .setThumbnail(selected.displayAvatarURL({ size: 256 }))
+                .setFooter({ text: "The wheel is never wrong. Legally." })
+                .setTimestamp();
+            return interaction.editReply({ embeds: [embed], allowedMentions: { users: [selected.id] } });
         }
 
         if (command === "conflict") {
