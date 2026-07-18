@@ -11,7 +11,11 @@ const {
     REST,
     Routes,
     PermissionFlagsBits,
-    ChannelType
+    ChannelType,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    EmbedBuilder
 } = require("discord.js");
 
 
@@ -45,13 +49,8 @@ const client = new Client({
 
 
 // ==================================================
-// CONFLICT GUARD CONFIGURATION
+// CONFLICT GUARD V2 CONFIG
 // ==================================================
-
-const conflictSettings = new Map();
-const conflictPairs = new Map();
-const channelConflictStates = new Map();
-const recentlyWarnedPairs = new Map();
 
 const DEFAULT_CONFLICT_SETTINGS = {
     enabled: true,
@@ -62,28 +61,17 @@ const DEFAULT_CONFLICT_SETTINGS = {
     logChannelId: null
 };
 
-const CONFLICT_WINDOW = 75 * 1000;
-const WARNING_COOLDOWN = 45 * 1000;
-const PAIR_EXPIRY = 10 * 60 * 1000;
-
-const SLOWMODE_SECONDS = 10;
-const SLOWMODE_DURATION = 5 * 60 * 1000;
-
-const AUTO_TIMEOUT_DURATION = 10 * 60 * 1000;
-
 const sensitivityLevels = {
     low: {
-        warningThreshold: 7,
-        slowmodeThreshold: 11,
-        timeoutThreshold: 16
+        warningThreshold: 8,
+        slowmodeThreshold: 13,
+        timeoutThreshold: 19
     },
-
     normal: {
-        warningThreshold: 5,
-        slowmodeThreshold: 9,
-        timeoutThreshold: 14
+        warningThreshold: 6,
+        slowmodeThreshold: 10,
+        timeoutThreshold: 15
     },
-
     high: {
         warningThreshold: 4,
         slowmodeThreshold: 7,
@@ -91,40 +79,56 @@ const sensitivityLevels = {
     }
 };
 
+const CONVERSATION_WINDOW = 90 * 1000;
+const PAIR_EXPIRY = 10 * 60 * 1000;
+const WARNING_COOLDOWN = 45 * 1000;
+
+const SLOWMODE_SECONDS = 10;
+const SLOWMODE_DURATION = 5 * 60 * 1000;
+const AUTO_TIMEOUT_DURATION = 10 * 60 * 1000;
+
+const conflictSettings = new Map();
+const conflictPairs = new Map();
+const recentChannelMessages = new Map();
+const channelConflictStates = new Map();
+const recentlyWarnedPairs = new Map();
+
 
 // ==================================================
-// HOSTILITY PATTERNS
+// HOSTILITY DETECTION
 // ==================================================
 
-// These focus on targeted insults.
-//
-// Ordinary swear words are deliberately not included.
-// Something like "I am so fucking bad at this game" will not trigger it.
+// Ordinary swearing is not enough to trigger the guard.
+// These patterns focus on words aimed at another person.
 
 const severeHostilityPatterns = [
     /\bk\s*y\s*s\b/i,
     /\bkill\s+yourself\b/i,
     /\bgo\s+die\b/i,
     /\bi\s+hope\s+you\s+die\b/i,
+    /\byou\s+should\s+die\b/i,
     /\bnobody\s+would\s+miss\s+you\b/i,
-    /\byou\s+should\s+die\b/i
+    /\bfall\s+on\s+your\s+neck\b/i
 ];
 
 const strongHostilityPatterns = [
     /\bfuck\s+you\b/i,
     /\bfuck\s+off\b/i,
+    /\bget\s+the\s+fuck\s+out(?:ta| of)\s+my\s+face\b/i,
     /\bstfu\b/i,
     /\bshut\s+(?:the\s+fuck\s+)?up\b/i,
-    /\bi\s+hate\s+you\b/i,
+    /\bi\s+hate\s+(?:you|u)\b/i,
     /\bnobody\s+likes\s+you\b/i,
     /\bnobody\s+cares\s+about\s+you\b/i,
-    /\byou(?:'re| are)\s+(?:a\s+)?(?:fucking\s+)?(?:idiot|moron|loser|clown|weirdo|failure)\b/i,
-    /\byou\s+(?:fucking\s+)?(?:idiot|moron|loser|clown|weirdo)\b/i
+    /\byou(?:'re| are)\s+(?:a\s+)?(?:fucking\s+)?(?:idiot|moron|loser|clown|weirdo|failure|bitch)\b/i,
+    /\byou\s+(?:fucking\s+)?(?:idiot|moron|loser|clown|weirdo|bitch)\b/i,
+    /\bbitch\s+ass\b/i,
+    /\bface\s*bitch\b/i
 ];
 
 const mediumHostilityPatterns = [
     /\byou(?:'re| are)\s+(?:so\s+)?(?:stupid|dumb|pathetic|useless|annoying|embarrassing|delusional|ugly)\b/i,
-    /\byour\s+brain\s+(?:doesn't|does not)\s+work\b/i,
+    /\bare\s+you\s+(?:actually\s+)?(?:stupid|dumb)\b/i,
     /\bget\s+a\s+life\b/i,
     /\bkeep\s+crying\b/i,
     /\bcry\s+more\b/i,
@@ -133,7 +137,8 @@ const mediumHostilityPatterns = [
     /\byou(?:'re| are)\s+mad\b/i,
     /\byou(?:'re| are)\s+obsessed\b/i,
     /\bno\s+one\s+asked\s+you\b/i,
-    /\byou\s+make\s+no\s+sense\b/i
+    /\byou\s+make\s+no\s+sense\b/i,
+    /\bwhat\s+is\s+wrong\s+with\s+you\b/i
 ];
 
 const lightHostilityPatterns = [
@@ -143,21 +148,10 @@ const lightHostilityPatterns = [
     /\bclown\b/i,
     /\bweirdo\b/i,
     /\bdumbass\b/i,
+    /\bbitch\b/i,
     /\bshut\s+up\b/i,
     /\bget\s+lost\b/i,
-    /\bwhat\s+is\s+wrong\s+with\s+you\b/i,
-    /\bare\s+you\s+stupid\b/i,
     /\bcan\s+you\s+read\b/i
-];
-
-const dismissivePatterns = [
-    /\bdon't\s+care\b/i,
-    /\bdidn't\s+ask\b/i,
-    /\bwho\s+asked\b/i,
-    /\bcope\b/i,
-    /\bskill\s+issue\b/i,
-    /\bwomp\s+womp\b/i,
-    /\byap(?:ping)?\b/i
 ];
 
 const funnyConflictWarnings = [
@@ -169,14 +163,13 @@ const funnyConflictWarnings = [
     "📢 Both contestants have been disqualified from the Yap Olympics.",
     "🧯 This conversation is beginning to smoke. Everybody step back.",
     "🎬 Cut! The argument scene was convincing, but we are moving on now.",
-    "🕊️ Beloved is deploying emergency peace and affection.",
     "😭 You two are arguing like there is prize money involved."
 ];
 
 const seriousConflictWarnings = [
-    "⚠️ This conversation is becoming hostile. Please take a break and stop targeting each other.",
-    "⚠️ Please stop the personal attacks and move on from this conversation.",
-    "⚠️ This argument is escalating. Further hostile messages may trigger slowmode.",
+    "⚠️ This conversation is becoming hostile. Please take a break.",
+    "⚠️ Stop the personal attacks and move on from this conversation.",
+    "⚠️ This argument is escalating. Further hostility may trigger slowmode.",
     "⚠️ Keep the conversation respectful. Personal attacks are not allowed."
 ];
 
@@ -195,7 +188,6 @@ function getGuildSettings(guildId) {
     return conflictSettings.get(guildId);
 }
 
-
 function normaliseMessage(content) {
     return content
         .toLowerCase()
@@ -206,24 +198,22 @@ function normaliseMessage(content) {
         .trim();
 }
 
-
 function matchesAnyPattern(content, patterns) {
     return patterns.some(pattern => pattern.test(content));
 }
 
-
-function calculateHostilityScore(content, hasDirectTarget) {
-    const cleanContent = normaliseMessage(content);
+function calculateHostilityScore(content, hasTargetContext) {
+    const clean = normaliseMessage(content);
 
     let score = 0;
     let severity = "none";
 
-    if (matchesAnyPattern(cleanContent, severeHostilityPatterns)) {
+    if (matchesAnyPattern(clean, severeHostilityPatterns)) {
         score += 8;
         severity = "severe";
     }
 
-    if (matchesAnyPattern(cleanContent, strongHostilityPatterns)) {
+    if (matchesAnyPattern(clean, strongHostilityPatterns)) {
         score += 4;
 
         if (severity === "none") {
@@ -231,7 +221,7 @@ function calculateHostilityScore(content, hasDirectTarget) {
         }
     }
 
-    if (matchesAnyPattern(cleanContent, mediumHostilityPatterns)) {
+    if (matchesAnyPattern(clean, mediumHostilityPatterns)) {
         score += 2;
 
         if (severity === "none") {
@@ -240,8 +230,8 @@ function calculateHostilityScore(content, hasDirectTarget) {
     }
 
     if (
-        hasDirectTarget &&
-        matchesAnyPattern(cleanContent, lightHostilityPatterns)
+        hasTargetContext &&
+        matchesAnyPattern(clean, lightHostilityPatterns)
     ) {
         score += 1;
 
@@ -250,20 +240,7 @@ function calculateHostilityScore(content, hasDirectTarget) {
         }
     }
 
-    if (
-        hasDirectTarget &&
-        matchesAnyPattern(cleanContent, dismissivePatterns)
-    ) {
-        score += 0.5;
-
-        if (severity === "none") {
-            severity = "dismissive";
-        }
-    }
-
-    // A hostile phrase aimed directly at somebody is more meaningful
-    // than the same phrase posted without context.
-    if (hasDirectTarget && score > 0) {
+    if (hasTargetContext && score > 0) {
         score += 0.5;
     }
 
@@ -273,27 +250,10 @@ function calculateHostilityScore(content, hasDirectTarget) {
     };
 }
 
-
 function getPairKey(guildId, firstUserId, secondUserId) {
-    const users = [firstUserId, secondUserId].sort();
-
-    return `${guildId}:${users[0]}:${users[1]}`;
+    const sorted = [firstUserId, secondUserId].sort();
+    return `${guildId}:${sorted[0]}:${sorted[1]}`;
 }
-
-
-function cleanConflictPair(pairData) {
-    const cutoff = Date.now() - CONFLICT_WINDOW;
-
-    pairData.messages = pairData.messages.filter(
-        message => message.timestamp >= cutoff
-    );
-
-    pairData.totalScore = pairData.messages.reduce(
-        (total, message) => total + message.score,
-        0
-    );
-}
-
 
 function isModerator(member) {
     if (!member) {
@@ -309,11 +269,38 @@ function isModerator(member) {
     );
 }
 
+function getRecentMessages(channelId) {
+    const messages = recentChannelMessages.get(channelId) || [];
+    const cutoff = Date.now() - CONVERSATION_WINDOW;
 
-async function findTargetUser(message) {
-    // Direct replies are the strongest sign that a message
-    // is aimed at another member.
+    const fresh = messages.filter(
+        item => item.timestamp >= cutoff
+    );
 
+    recentChannelMessages.set(channelId, fresh);
+    return fresh;
+}
+
+function rememberChannelMessage(message, hostility) {
+    const messages = getRecentMessages(message.channel.id);
+
+    messages.push({
+        authorId: message.author.id,
+        member: message.member,
+        content: message.content,
+        hostilityScore: hostility.score,
+        severity: hostility.severity,
+        timestamp: Date.now()
+    });
+
+    while (messages.length > 30) {
+        messages.shift();
+    }
+
+    recentChannelMessages.set(message.channel.id, messages);
+}
+
+async function findExplicitTarget(message) {
     if (message.reference?.messageId) {
         try {
             const repliedMessage = await message.channel.messages.fetch(
@@ -333,13 +320,11 @@ async function findTargetUser(message) {
             }
         } catch (error) {
             console.error(
-                "Could not fetch replied-to message:",
+                "Could not fetch replied message:",
                 error.message
             );
         }
     }
-
-    // Otherwise, use the first direct user mention.
 
     const mentionedMember = message.mentions.members.find(
         member =>
@@ -358,28 +343,61 @@ async function findTargetUser(message) {
     return null;
 }
 
+function inferConversationTarget(message) {
+    const recent = getRecentMessages(message.channel.id);
 
-function hasMutualArgument(pairData) {
-    const authors = new Set(
-        pairData.messages.map(message => message.authorId)
-    );
+    // Look backwards for the most recent different human speaker.
+    // This lets the bot catch normal channel arguments without replies.
+    for (let index = recent.length - 1; index >= 0; index--) {
+        const previous = recent[index];
 
-    return authors.size >= 2;
-}
+        if (previous.authorId === message.author.id) {
+            continue;
+        }
 
+        // Only infer a target when the previous message was recent enough.
+        if (Date.now() - previous.timestamp > 30 * 1000) {
+            return null;
+        }
 
-function getExchangeCount(pairData) {
-    if (pairData.messages.length < 2) {
-        return 0;
+        return {
+            userId: previous.authorId,
+            member: previous.member,
+            method: "conversation-flow",
+            previousWasHostile: previous.hostilityScore > 0
+        };
     }
 
+    return null;
+}
+
+function cleanConflictPair(pairData) {
+    const cutoff = Date.now() - CONVERSATION_WINDOW;
+
+    pairData.messages = pairData.messages.filter(
+        item => item.timestamp >= cutoff
+    );
+
+    pairData.totalScore = pairData.messages.reduce(
+        (total, item) => total + item.score,
+        0
+    );
+}
+
+function hasMutualArgument(pairData) {
+    return new Set(
+        pairData.messages.map(item => item.authorId)
+    ).size >= 2;
+}
+
+function getExchangeCount(pairData) {
     let exchanges = 0;
 
     for (let index = 1; index < pairData.messages.length; index++) {
-        const current = pairData.messages[index];
-        const previous = pairData.messages[index - 1];
-
-        if (current.authorId !== previous.authorId) {
+        if (
+            pairData.messages[index].authorId !==
+            pairData.messages[index - 1].authorId
+        ) {
             exchanges++;
         }
     }
@@ -387,22 +405,20 @@ function getExchangeCount(pairData) {
     return exchanges;
 }
 
-
 function pairWasRecentlyWarned(pairKey) {
-    const warningTime = recentlyWarnedPairs.get(pairKey);
+    const warnedAt = recentlyWarnedPairs.get(pairKey);
 
-    if (!warningTime) {
+    if (!warnedAt) {
         return false;
     }
 
-    if (Date.now() - warningTime > WARNING_COOLDOWN) {
+    if (Date.now() - warnedAt > WARNING_COOLDOWN) {
         recentlyWarnedPairs.delete(pairKey);
         return false;
     }
 
     return true;
 }
-
 
 async function sendConflictLog(guild, settings, data) {
     if (!settings.logChannelId) {
@@ -417,17 +433,15 @@ async function sendConflictLog(guild, settings, data) {
         return;
     }
 
-    const description = [
-        `**Action:** ${data.action}`,
-        `**Channel:** <#${data.channelId}>`,
-        `**Members:** <@${data.userOneId}> and <@${data.userTwoId}>`,
-        `**Conflict score:** ${data.score}`,
-        `**Recent exchanges:** ${data.exchanges}`
-    ].join("\n");
-
     try {
         await logChannel.send({
-            content: `🛡️ **Beloved Conflict Guard**\n${description}`,
+            content:
+                `🛡️ **Beloved Conflict Guard V2**\n` +
+                `**Action:** ${data.action}\n` +
+                `**Channel:** <#${data.channelId}>\n` +
+                `**Members:** <@${data.userOneId}> and <@${data.userTwoId}>\n` +
+                `**Score:** ${data.score}\n` +
+                `**Exchanges:** ${data.exchanges}`,
             allowedMentions: {
                 parse: []
             }
@@ -440,7 +454,6 @@ async function sendConflictLog(guild, settings, data) {
     }
 }
 
-
 async function enableTemporarySlowmode(channel) {
     if (
         channel.type !== ChannelType.GuildText &&
@@ -452,9 +465,9 @@ async function enableTemporarySlowmode(channel) {
         };
     }
 
-    const channelKey = `${channel.guild.id}:${channel.id}`;
+    const key = `${channel.guild.id}:${channel.id}`;
 
-    if (channelConflictStates.has(channelKey)) {
+    if (channelConflictStates.has(key)) {
         return {
             success: true,
             alreadyActive: true
@@ -485,7 +498,7 @@ async function enableTemporarySlowmode(channel) {
 
         const timeout = setTimeout(async () => {
             try {
-                const state = channelConflictStates.get(channelKey);
+                const state = channelConflictStates.get(key);
 
                 if (!state) {
                     return;
@@ -496,10 +509,10 @@ async function enableTemporarySlowmode(channel) {
                     "Beloved Conflict Guard slowmode expired"
                 );
 
-                channelConflictStates.delete(channelKey);
+                channelConflictStates.delete(key);
 
                 await channel.send(
-                    "🕊️ Temporary slowmode has ended. Please keep it peaceful."
+                    "🕊️ Temporary slowmode has ended. Keep it peaceful."
                 );
             } catch (error) {
                 console.error(
@@ -507,11 +520,11 @@ async function enableTemporarySlowmode(channel) {
                     error.message
                 );
 
-                channelConflictStates.delete(channelKey);
+                channelConflictStates.delete(key);
             }
         }, SLOWMODE_DURATION);
 
-        channelConflictStates.set(channelKey, {
+        channelConflictStates.set(key, {
             originalSlowmode,
             timeout
         });
@@ -533,17 +546,8 @@ async function enableTemporarySlowmode(channel) {
     }
 }
 
-
 async function timeoutMember(member, reason) {
-    if (!member) {
-        return false;
-    }
-
-    if (isModerator(member)) {
-        return false;
-    }
-
-    if (!member.moderatable) {
+    if (!member || isModerator(member) || !member.moderatable) {
         return false;
     }
 
@@ -556,7 +560,7 @@ async function timeoutMember(member, reason) {
         return true;
     } catch (error) {
         console.error(
-            `Could not timeout ${member.user.tag}:`,
+            "Could not timeout member:",
             error.message
         );
 
@@ -565,6 +569,10 @@ async function timeoutMember(member, reason) {
 }
 
 
+// ==================================================
+// CONFLICT GUARD V2 PROCESSOR
+// ==================================================
+
 async function processConflictMessage(message) {
     if (!message.guild || !message.member) {
         return;
@@ -572,39 +580,43 @@ async function processConflictMessage(message) {
 
     const settings = getGuildSettings(message.guild.id);
 
-    if (!settings.enabled) {
+    if (!settings.enabled || isModerator(message.member)) {
         return;
     }
 
-    // Moderators can still be targeted, but their own moderation messages
-    // should not accidentally count as conflict messages.
+    const explicitTarget = await findExplicitTarget(message);
+    const inferredTarget = explicitTarget
+        ? null
+        : inferConversationTarget(message);
 
-    if (isModerator(message.member)) {
-        return;
-    }
-
-    const target = await findTargetUser(message);
-
-    // The system intentionally requires a reply or direct mention.
-    // Random swearing and self-directed swearing are ignored.
-
-    if (!target) {
-        return;
-    }
+    const hasTargetContext = Boolean(
+        explicitTarget || inferredTarget
+    );
 
     const hostility = calculateHostilityScore(
         message.content,
-        true
+        hasTargetContext
     );
 
-    if (hostility.score <= 0) {
+    // Remember every message so future messages can use conversation flow.
+    rememberChannelMessage(message, hostility);
+
+    if (hostility.score <= 0 || !hasTargetContext) {
+        return;
+    }
+
+    const targetId = explicitTarget
+        ? explicitTarget.user.id
+        : inferredTarget.userId;
+
+    if (!targetId || targetId === message.author.id) {
         return;
     }
 
     const pairKey = getPairKey(
         message.guild.id,
         message.author.id,
-        target.user.id
+        targetId
     );
 
     let pairData = conflictPairs.get(pairKey);
@@ -613,10 +625,7 @@ async function processConflictMessage(message) {
         pairData = {
             guildId: message.guild.id,
             channelId: message.channel.id,
-            userIds: [
-                message.author.id,
-                target.user.id
-            ],
+            userIds: [message.author.id, targetId],
             messages: [],
             totalScore: 0,
             warned: false,
@@ -628,26 +637,35 @@ async function processConflictMessage(message) {
 
     cleanConflictPair(pairData);
 
-    const repeatedBySameAuthor = pairData.messages.filter(
+    let score = hostility.score;
+
+    // Conversation-flow detection gets stronger when the previous speaker
+    // was also hostile, because that is a clear back-and-forth fight.
+    if (
+        inferredTarget &&
+        inferredTarget.previousWasHostile
+    ) {
+        score += 1.5;
+    }
+
+    const sameAuthorCount = pairData.messages.filter(
         item => item.authorId === message.author.id
     ).length;
 
-    let messageScore = hostility.score;
-
-    // Repeated targeted messages from one person gradually become
-    // more concerning.
-
-    if (repeatedBySameAuthor >= 2) {
-        messageScore += 1;
+    if (sameAuthorCount >= 2) {
+        score += 1;
     }
 
     pairData.messages.push({
         authorId: message.author.id,
-        targetId: target.user.id,
-        score: messageScore,
+        targetId,
+        score,
         severity: hostility.severity,
         timestamp: Date.now(),
-        messageId: message.id
+        messageId: message.id,
+        targetMethod: explicitTarget
+            ? explicitTarget.method
+            : inferredTarget.method
     });
 
     pairData.channelId = message.channel.id;
@@ -656,56 +674,44 @@ async function processConflictMessage(message) {
     cleanConflictPair(pairData);
     conflictPairs.set(pairKey, pairData);
 
-    const sensitivity = sensitivityLevels[
+    const level = sensitivityLevels[
         settings.sensitivity
     ] || sensitivityLevels.normal;
 
-    const mutualArgument = hasMutualArgument(pairData);
+    const mutual = hasMutualArgument(pairData);
     const exchanges = getExchangeCount(pairData);
-
-    // Severe messages can be handled immediately.
-    // Ordinary conflict requires mutual back-and-forth or repeated targeting.
-
-    const hasSevereMessage = pairData.messages.some(
+    const severe = pairData.messages.some(
         item => item.severity === "severe"
     );
-
     const repeatedTargeting = pairData.messages.length >= 3;
 
-    const qualifiesForAction =
-        hasSevereMessage ||
-        mutualArgument ||
-        repeatedTargeting;
-
-    if (!qualifiesForAction) {
+    // A severe threat can trigger immediately.
+    // Otherwise require back-and-forth or repeated targeting.
+    if (!severe && !mutual && !repeatedTargeting) {
         return;
     }
 
-    // ------------------------------
-    // Warning
-    // ------------------------------
-
     if (
-        pairData.totalScore >= sensitivity.warningThreshold &&
+        pairData.totalScore >= level.warningThreshold &&
         !pairData.warned &&
         !pairWasRecentlyWarned(pairKey)
     ) {
         pairData.warned = true;
         recentlyWarnedPairs.set(pairKey, Date.now());
 
-        const warningCollection = settings.funnyMessages
+        const warningPool = settings.funnyMessages
             ? funnyConflictWarnings
             : seriousConflictWarnings;
 
-        const warning = warningCollection[
-            Math.floor(Math.random() * warningCollection.length)
+        const warning = warningPool[
+            Math.floor(Math.random() * warningPool.length)
         ];
 
         await message.channel.send({
             content:
                 `${warning}\n\n` +
                 `<@${pairData.userIds[0]}> and ` +
-                `<@${pairData.userIds[1]}>, please move on or take it to DMs.`,
+                `<@${pairData.userIds[1]}>, move on or take a break.`,
             allowedMentions: {
                 users: pairData.userIds
             }
@@ -725,13 +731,9 @@ async function processConflictMessage(message) {
         );
     }
 
-    // ------------------------------
-    // Slowmode
-    // ------------------------------
-
     if (
         settings.slowmodeEnabled &&
-        pairData.totalScore >= sensitivity.slowmodeThreshold &&
+        pairData.totalScore >= level.slowmodeThreshold &&
         !pairData.slowmodeTriggered
     ) {
         pairData.slowmodeTriggered = true;
@@ -742,9 +744,8 @@ async function processConflictMessage(message) {
 
         if (result.success && !result.alreadyActive) {
             await message.channel.send(
-                `🐌 This channel has been placed in ` +
-                `${SLOWMODE_SECONDS}-second slowmode for 5 minutes ` +
-                `because the argument continued.`
+                `🐌 Argument continued. This channel now has ` +
+                `${SLOWMODE_SECONDS}-second slowmode for 5 minutes.`
             );
 
             await sendConflictLog(
@@ -760,38 +761,25 @@ async function processConflictMessage(message) {
                 }
             );
         }
-
-        if (
-            !result.success &&
-            result.reason === "missing-permission"
-        ) {
-            console.log(
-                `⚠️ Beloved needs Manage Channels in #${message.channel.name}`
-            );
-        }
     }
-
-    // ------------------------------
-    // Optional automatic timeout
-    // ------------------------------
 
     if (
         settings.timeoutEnabled &&
-        pairData.totalScore >= sensitivity.timeoutThreshold &&
+        pairData.totalScore >= level.timeoutThreshold &&
         !pairData.timeoutTriggered
     ) {
         pairData.timeoutTriggered = true;
 
-        const authorTimedOut = await timeoutMember(
+        const timedOut = await timeoutMember(
             message.member,
             "Repeated targeted hostility detected by Beloved Conflict Guard"
         );
 
-        if (authorTimedOut) {
+        if (timedOut) {
             await message.channel.send({
                 content:
-                    `⏰ <@${message.author.id}> has been timed out for ` +
-                    `10 minutes after continuing the argument.`,
+                    `⏰ <@${message.author.id}> has been timed out ` +
+                    `for 10 minutes after continuing the argument.`,
                 allowedMentions: {
                     users: [message.author.id]
                 }
@@ -814,31 +802,188 @@ async function processConflictMessage(message) {
 }
 
 
-// Remove old tracking data to prevent memory buildup.
+// Clean old memory.
 
 setInterval(() => {
-    const expiryTime = Date.now() - PAIR_EXPIRY;
+    const expiry = Date.now() - PAIR_EXPIRY;
 
-    for (const [pairKey, pairData] of conflictPairs) {
-        if (pairData.lastUpdated < expiryTime) {
-            conflictPairs.delete(pairKey);
+    for (const [key, pair] of conflictPairs) {
+        if (pair.lastUpdated < expiry) {
+            conflictPairs.delete(key);
         }
     }
 
-    for (const [pairKey, warningTime] of recentlyWarnedPairs) {
-        if (Date.now() - warningTime > WARNING_COOLDOWN) {
-            recentlyWarnedPairs.delete(pairKey);
+    for (const [key, warnedAt] of recentlyWarnedPairs) {
+        if (Date.now() - warnedAt > WARNING_COOLDOWN) {
+            recentlyWarnedPairs.delete(key);
         }
+    }
+
+    for (const [channelId] of recentChannelMessages) {
+        getRecentMessages(channelId);
     }
 }, 60 * 1000);
 
+
+// ==================================================
+// SMASH OR PASS GAME
+// ==================================================
+
+const activeSmashOrPassGames = new Map();
+
+function buildSmashOrPassButtons(gameId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`sop:smash:${gameId}`)
+            .setLabel("Smash")
+            .setEmoji("❤️")
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setCustomId(`sop:pass:${gameId}`)
+            .setLabel("Pass")
+            .setEmoji("❌")
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(disabled)
+    );
+}
+
+function buildSmashOrPassEmbed(game, ended = false) {
+    const smashCount = [...game.votes.values()].filter(vote => vote === "smash").length;
+    const passCount = [...game.votes.values()].filter(vote => vote === "pass").length;
+
+    const embed = new EmbedBuilder()
+        .setTitle(ended ? "🔥 Smash or Pass — Results" : "🔥 Smash or Pass")
+        .setDescription(
+            `**Target:** <@${game.targetId}>\n` +
+            `**Started by:** <@${game.hostId}>`
+        )
+        .addFields(
+            {
+                name: "❤️ Smash",
+                value: `${smashCount} vote${smashCount === 1 ? "" : "s"}`,
+                inline: true
+            },
+            {
+                name: "❌ Pass",
+                value: `${passCount} vote${passCount === 1 ? "" : "s"}`,
+                inline: true
+            }
+        )
+        .setThumbnail(game.targetAvatar)
+        .setFooter({
+            text: ended
+                ? "Voting has ended — Beloved brought receipts."
+                : "One vote per person. Click again to change your vote."
+        })
+        .setTimestamp();
+
+    if (!ended) {
+        embed.addFields({
+            name: "⏳ Time remaining",
+            value: `<t:${Math.floor(game.endsAt / 1000)}:R>`,
+            inline: false
+        });
+    }
+
+    return embed;
+}
+
+function formatVoterList(userIds) {
+    if (userIds.length === 0) {
+        return "Nobody 😭";
+    }
+
+    const mentions = userIds.map(userId => `<@${userId}>`);
+    const lines = [];
+    let current = "";
+
+    for (const mention of mentions) {
+        const next = current ? `${current}, ${mention}` : mention;
+
+        if (next.length > 900) {
+            lines.push(current);
+            current = mention;
+        } else {
+            current = next;
+        }
+    }
+
+    if (current) {
+        lines.push(current);
+    }
+
+    return lines.join("\n").slice(0, 1024);
+}
+
+async function finishSmashOrPassGame(gameId) {
+    const game = activeSmashOrPassGames.get(gameId);
+
+    if (!game || game.ended) {
+        return;
+    }
+
+    game.ended = true;
+    activeSmashOrPassGames.delete(gameId);
+
+    const smashVoters = [];
+    const passVoters = [];
+
+    for (const [userId, vote] of game.votes) {
+        if (vote === "smash") {
+            smashVoters.push(userId);
+        } else {
+            passVoters.push(userId);
+        }
+    }
+
+    let result;
+
+    if (smashVoters.length > passVoters.length) {
+        result = "❤️ **SMASH WINS**";
+    } else if (passVoters.length > smashVoters.length) {
+        result = "❌ **PASS WINS**";
+    } else {
+        result = "🤝 **IT'S A TIE**";
+    }
+
+    const embed = buildSmashOrPassEmbed(game, true)
+        .addFields(
+            {
+                name: `❤️ Voted Smash (${smashVoters.length})`,
+                value: formatVoterList(smashVoters),
+                inline: false
+            },
+            {
+                name: `❌ Voted Pass (${passVoters.length})`,
+                value: formatVoterList(passVoters),
+                inline: false
+            },
+            {
+                name: "🏆 Final result",
+                value: result,
+                inline: false
+            }
+        );
+
+    try {
+        await game.message.edit({
+            embeds: [embed],
+            components: [buildSmashOrPassButtons(gameId, true)],
+            allowedMentions: {
+                parse: []
+            }
+        });
+    } catch (error) {
+        console.error("Could not finish Smash or Pass game:", error.message);
+    }
+}
 
 // ==================================================
 // SLASH COMMANDS
 // ==================================================
 
 const commands = [
-
     new SlashCommandBuilder()
         .setName("love")
         .setDescription("Give someone Beloved's love")
@@ -938,30 +1083,44 @@ const commands = [
         ),
 
     new SlashCommandBuilder()
+        .setName("smashorpass")
+        .setDescription("Start a Smash or Pass vote for someone")
+        .addUserOption(option =>
+            option
+                .setName("user")
+                .setDescription("The person people will vote on")
+                .setRequired(true)
+        )
+        .addIntegerOption(option =>
+            option
+                .setName("duration")
+                .setDescription("Voting time in seconds (10-300)")
+                .setMinValue(10)
+                .setMaxValue(300)
+                .setRequired(false)
+        ),
+
+    new SlashCommandBuilder()
         .setName("conflict")
         .setDescription("Configure Beloved Conflict Guard")
         .setDefaultMemberPermissions(
             PermissionFlagsBits.ManageGuild
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("status")
                 .setDescription("View Conflict Guard settings")
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("enable")
                 .setDescription("Enable Conflict Guard")
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("disable")
                 .setDescription("Disable Conflict Guard")
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("sensitivity")
@@ -981,13 +1140,12 @@ const commands = [
                                 value: "normal"
                             },
                             {
-                                name: "High — more protective",
+                                name: "High — fastest detection",
                                 value: "high"
                             }
                         )
                 )
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("funny")
@@ -995,11 +1153,10 @@ const commands = [
                 .addBooleanOption(option =>
                     option
                         .setName("enabled")
-                        .setDescription("Use funny intervention messages")
+                        .setDescription("Use funny warning messages")
                         .setRequired(true)
                 )
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("slowmode")
@@ -1011,7 +1168,6 @@ const commands = [
                         .setRequired(true)
                 )
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("timeouts")
@@ -1023,7 +1179,6 @@ const commands = [
                         .setRequired(true)
                 )
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("logchannel")
@@ -1036,7 +1191,6 @@ const commands = [
                         .addChannelTypes(ChannelType.GuildText)
                 )
         )
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName("clearlogs")
@@ -1052,7 +1206,6 @@ const commands = [
 const rest = new REST({
     version: "10"
 }).setToken(process.env.TOKEN);
-
 
 async function deploy() {
     try {
@@ -1073,7 +1226,6 @@ async function deploy() {
         console.error("Command deployment error:", error);
     }
 }
-
 
 deploy();
 
@@ -1104,11 +1256,60 @@ client.once(Events.ClientReady, readyClient => {
 // ==================================================
 
 client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isChatInputCommand()) {
-        return;
-    }
-
     try {
+        if (interaction.isButton()) {
+            if (!interaction.customId.startsWith("sop:")) {
+                return;
+            }
+
+            const [, vote, gameId] = interaction.customId.split(":");
+            const game = activeSmashOrPassGames.get(gameId);
+
+            if (!game || game.ended || Date.now() >= game.endsAt) {
+                return interaction.reply({
+                    content: "⏰ Voting has already ended.",
+                    ephemeral: true
+                });
+            }
+
+            if (interaction.user.bot) {
+                return interaction.reply({
+                    content: "🤖 Bots cannot vote.",
+                    ephemeral: true
+                });
+            }
+
+            if (interaction.user.id === game.targetId) {
+                return interaction.reply({
+                    content: "😭 You cannot vote on yourself.",
+                    ephemeral: true
+                });
+            }
+
+            const previousVote = game.votes.get(interaction.user.id);
+            game.votes.set(interaction.user.id, vote);
+
+            await interaction.update({
+                embeds: [buildSmashOrPassEmbed(game)],
+                components: [buildSmashOrPassButtons(gameId)]
+            });
+
+            const response = previousVote === vote
+                ? `Your vote is still **${vote.toUpperCase()}**.`
+                : previousVote
+                    ? `Vote changed from **${previousVote.toUpperCase()}** to **${vote.toUpperCase()}**.`
+                    : `Vote locked in: **${vote.toUpperCase()}**.`;
+
+            return interaction.followUp({
+                content: response,
+                ephemeral: true
+            });
+        }
+
+        if (!interaction.isChatInputCommand()) {
+            return;
+        }
+
         const command = interaction.commandName;
 
         if (command === "love") {
@@ -1126,7 +1327,6 @@ client.on(Events.InteractionCreate, async interaction => {
             );
         }
 
-
         if (command === "roast") {
             const user = interaction.options.getUser("user");
 
@@ -1141,7 +1341,6 @@ client.on(Events.InteractionCreate, async interaction => {
                 replies[Math.floor(Math.random() * replies.length)]
             );
         }
-
 
         if (command === "compliment") {
             const user = interaction.options.getUser("user");
@@ -1158,7 +1357,6 @@ client.on(Events.InteractionCreate, async interaction => {
             );
         }
 
-
         if (command === "hug") {
             const user = interaction.options.getUser("user");
 
@@ -1174,11 +1372,9 @@ client.on(Events.InteractionCreate, async interaction => {
             );
         }
 
-
         if (command === "ship") {
             const one = interaction.options.getUser("one");
             const two = interaction.options.getUser("two");
-
             const score = Math.floor(Math.random() * 101);
 
             const result =
@@ -1195,7 +1391,6 @@ client.on(Events.InteractionCreate, async interaction => {
             );
         }
 
-
         if (command === "vibe") {
             const vibes = [
                 "🔥 Illegal levels of vibe detected.",
@@ -1210,7 +1405,6 @@ client.on(Events.InteractionCreate, async interaction => {
             );
         }
 
-
         if (command === "fortune") {
             const fortunes = [
                 "🔮 You will find happiness near food.",
@@ -1220,12 +1414,9 @@ client.on(Events.InteractionCreate, async interaction => {
             ];
 
             return interaction.reply(
-                fortunes[
-                    Math.floor(Math.random() * fortunes.length)
-                ]
+                fortunes[Math.floor(Math.random() * fortunes.length)]
             );
         }
-
 
         if (command === "mood") {
             const moods = [
@@ -1242,7 +1433,6 @@ client.on(Events.InteractionCreate, async interaction => {
                 }`
             );
         }
-
 
         if (command === "ask") {
             const question =
@@ -1262,7 +1452,6 @@ client.on(Events.InteractionCreate, async interaction => {
                 }`
             );
         }
-
 
         if (command === "8ball") {
             const question =
@@ -1284,23 +1473,70 @@ client.on(Events.InteractionCreate, async interaction => {
             );
         }
 
-
         if (command === "rate") {
             const user =
                 interaction.options.getUser("user");
 
-            const coolness = Math.floor(Math.random() * 101);
-            const chaos = Math.floor(Math.random() * 101);
-            const approval = Math.floor(Math.random() * 101);
-
             return interaction.reply(
                 `⭐ ${user} rating:\n\n` +
-                `Coolness: ${coolness}%\n` +
-                `Chaos: ${chaos}%\n` +
-                `Beloved approval: ${approval}%`
+                `Coolness: ${Math.floor(Math.random() * 101)}%\n` +
+                `Chaos: ${Math.floor(Math.random() * 101)}%\n` +
+                `Beloved approval: ${Math.floor(Math.random() * 101)}%`
             );
         }
 
+        if (command === "smashorpass") {
+            if (!interaction.guild || !interaction.channel?.isTextBased()) {
+                return interaction.reply({
+                    content: "This game can only be started in a server text channel.",
+                    ephemeral: true
+                });
+            }
+
+            const target = interaction.options.getUser("user");
+            const duration = interaction.options.getInteger("duration") || 60;
+
+            if (target.bot) {
+                return interaction.reply({
+                    content: "🤖 Leave the bots out of this one.",
+                    ephemeral: true
+                });
+            }
+
+            const gameId = `${interaction.id}`;
+            const game = {
+                id: gameId,
+                guildId: interaction.guild.id,
+                channelId: interaction.channel.id,
+                hostId: interaction.user.id,
+                targetId: target.id,
+                targetAvatar: target.displayAvatarURL({ size: 256 }),
+                endsAt: Date.now() + duration * 1000,
+                votes: new Map(),
+                ended: false,
+                message: null,
+                timer: null
+            };
+
+            await interaction.reply({
+                embeds: [buildSmashOrPassEmbed(game)],
+                components: [buildSmashOrPassButtons(gameId)],
+                allowedMentions: {
+                    users: [target.id, interaction.user.id]
+                }
+            });
+
+            game.message = await interaction.fetchReply();
+            activeSmashOrPassGames.set(gameId, game);
+
+            game.timer = setTimeout(() => {
+                finishSmashOrPassGame(gameId).catch(error => {
+                    console.error("Smash or Pass timer error:", error);
+                });
+            }, duration * 1000);
+
+            return;
+        }
 
         if (command === "conflict") {
             if (!interaction.guild) {
@@ -1317,73 +1553,56 @@ client.on(Events.InteractionCreate, async interaction => {
             const settings =
                 getGuildSettings(interaction.guild.id);
 
-
             if (subcommand === "status") {
                 const thresholds =
                     sensitivityLevels[settings.sensitivity];
 
                 return interaction.reply({
                     content:
-                        "🛡️ **Beloved Conflict Guard**\n\n" +
+                        "🛡️ **Beloved Conflict Guard V2**\n\n" +
                         `**Status:** ${
                             settings.enabled ? "Enabled ✅" : "Disabled ❌"
                         }\n` +
                         `**Sensitivity:** ${settings.sensitivity}\n` +
+                        `**Conversation-flow detection:** Enabled ✅\n` +
                         `**Funny warnings:** ${
-                            settings.funnyMessages
-                                ? "Enabled"
-                                : "Disabled"
+                            settings.funnyMessages ? "Enabled" : "Disabled"
                         }\n` +
                         `**Automatic slowmode:** ${
-                            settings.slowmodeEnabled
-                                ? "Enabled"
-                                : "Disabled"
+                            settings.slowmodeEnabled ? "Enabled" : "Disabled"
                         }\n` +
                         `**Automatic timeouts:** ${
-                            settings.timeoutEnabled
-                                ? "Enabled"
-                                : "Disabled"
+                            settings.timeoutEnabled ? "Enabled" : "Disabled"
                         }\n` +
                         `**Log channel:** ${
                             settings.logChannelId
                                 ? `<#${settings.logChannelId}>`
                                 : "Not configured"
                         }\n\n` +
-                        `**Warning threshold:** ${
-                            thresholds.warningThreshold
-                        }\n` +
-                        `**Slowmode threshold:** ${
-                            thresholds.slowmodeThreshold
-                        }\n` +
-                        `**Timeout threshold:** ${
-                            thresholds.timeoutThreshold
-                        }`,
+                        `**Warning threshold:** ${thresholds.warningThreshold}\n` +
+                        `**Slowmode threshold:** ${thresholds.slowmodeThreshold}\n` +
+                        `**Timeout threshold:** ${thresholds.timeoutThreshold}`,
                     ephemeral: true
                 });
             }
-
 
             if (subcommand === "enable") {
                 settings.enabled = true;
 
                 return interaction.reply({
-                    content:
-                        "✅ Conflict Guard is now enabled.",
+                    content: "✅ Conflict Guard V2 is enabled.",
                     ephemeral: true
                 });
             }
-
 
             if (subcommand === "disable") {
                 settings.enabled = false;
 
                 return interaction.reply({
-                    content:
-                        "❌ Conflict Guard is now disabled.",
+                    content: "❌ Conflict Guard is disabled.",
                     ephemeral: true
                 });
             }
-
 
             if (subcommand === "sensitivity") {
                 settings.sensitivity =
@@ -1391,12 +1610,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
                 return interaction.reply({
                     content:
-                        `🎚️ Conflict Guard sensitivity is now ` +
-                        `**${settings.sensitivity}**.`,
+                        `🎚️ Sensitivity is now **${settings.sensitivity}**.`,
                     ephemeral: true
                 });
             }
-
 
             if (subcommand === "funny") {
                 settings.funnyMessages =
@@ -1404,8 +1621,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
                 return interaction.reply({
                     content:
-                        `😂 Funny warnings are now ` +
-                        `**${
+                        `😂 Funny warnings are now **${
                             settings.funnyMessages
                                 ? "enabled"
                                 : "disabled"
@@ -1414,15 +1630,13 @@ client.on(Events.InteractionCreate, async interaction => {
                 });
             }
 
-
             if (subcommand === "slowmode") {
                 settings.slowmodeEnabled =
                     interaction.options.getBoolean("enabled");
 
                 return interaction.reply({
                     content:
-                        `🐌 Automatic slowmode is now ` +
-                        `**${
+                        `🐌 Automatic slowmode is now **${
                             settings.slowmodeEnabled
                                 ? "enabled"
                                 : "disabled"
@@ -1431,28 +1645,20 @@ client.on(Events.InteractionCreate, async interaction => {
                 });
             }
 
-
             if (subcommand === "timeouts") {
                 settings.timeoutEnabled =
                     interaction.options.getBoolean("enabled");
 
                 return interaction.reply({
                     content:
-                        `⏰ Automatic timeouts are now ` +
-                        `**${
+                        `⏰ Automatic timeouts are now **${
                             settings.timeoutEnabled
                                 ? "enabled"
                                 : "disabled"
-                        }**.\n\n` +
-                        `${
-                            settings.timeoutEnabled
-                                ? "Members may be timed out for 10 minutes after repeated targeted hostility."
-                                : "Beloved will continue warning and using slowmode without timing members out."
-                        }`,
+                        }**.`,
                     ephemeral: true
                 });
             }
-
 
             if (subcommand === "logchannel") {
                 const channel =
@@ -1462,18 +1668,17 @@ client.on(Events.InteractionCreate, async interaction => {
 
                 return interaction.reply({
                     content:
-                        `📋 Conflict Guard logs will now be sent to ${channel}.`,
+                        `📋 Conflict logs will be sent to ${channel}.`,
                     ephemeral: true
                 });
             }
-
 
             if (subcommand === "clearlogs") {
                 settings.logChannelId = null;
 
                 return interaction.reply({
                     content:
-                        "📋 Conflict Guard logging has been disabled.",
+                        "📋 Conflict logging has been disabled.",
                     ephemeral: true
                 });
             }
@@ -1506,11 +1711,7 @@ client.on(Events.MessageCreate, async message => {
     }
 
     try {
-        // Conflict Guard runs first.
-
         await processConflictMessage(message);
-
-        // Normal Beloved mention replies.
 
         if (
             message.mentions.has(client.user) &&
@@ -1523,8 +1724,7 @@ client.on(Events.MessageCreate, async message => {
                 "😭 Another ping? I just sat down.",
                 "🫡 Reporting for duty.",
                 "💅 I have arrived. Try to remain calm.",
-                "📞 Beloved customer service, how may I judge you?",
-                "✨ Your favourite collection of JavaScript has appeared."
+                "📞 Beloved customer service, how may I judge you?"
             ];
 
             await message.reply(
@@ -1538,7 +1738,7 @@ client.on(Events.MessageCreate, async message => {
 
 
 // ==================================================
-// PROCESS ERROR HANDLING
+// ERROR HANDLING
 // ==================================================
 
 process.on("unhandledRejection", error => {
