@@ -111,14 +111,11 @@ function progressBar(value, max, length = 10) {
 loadEconomy();
 
 const BELOVED_PINK = 0xFF69B4;
-const CASINO_BANNER_URL = process.env.CASINO_BANNER_URL ||
-    "https://cdn.discordapp.com/attachments/1528086860398596238/1528086930674286662/ChatGPT_Image_Jul_18_2026_06_11_09_PM.png?ex=6a5d055a&is=6a5bb3da&hm=3f7d7332b702c37e54e76a3f794006dc6295605dd779417abd5b765d08cbe374";
 
 function belovedEmbed(title) {
     return new EmbedBuilder()
         .setColor(BELOVED_PINK)
-        .setTitle(title)
-        .setThumbnail(CASINO_BANNER_URL);
+        .setTitle(title);
 }
 
 const SLOT_SYMBOLS = [
@@ -139,18 +136,19 @@ function slotGrid(finalRow = null) {
     return rows;
 }
 
-function renderSlotReels(row, locked = 0) {
-    const reels = row.map((item, index) => {
-        const symbol = item.emoji;
-        return index < locked ? `**${symbol}**` : symbol;
-    });
+function renderSlotReels(grid, status = "SPINNING") {
+    const rows = grid.map(row => row.map(item => item.emoji));
 
     return [
-        "### 🎰  BELOVED SLOTS",
-        "",
-        `## ${reels.join("　　")}`,
-        "",
-        locked < 3 ? `*${"▰".repeat(locked)}${"▱".repeat(3 - locked)} locking reels...*` : "*All reels locked.*"
+        "```",
+        "┌─────────────────┐",
+        `│  ${rows[0][0]}  │  ${rows[0][1]}  │  ${rows[0][2]}  │`,
+        `│  ${rows[1][0]}  │  ${rows[1][1]}  │  ${rows[1][2]}  │  ◀`,
+        `│  ${rows[2][0]}  │  ${rows[2][1]}  │  ${rows[2][2]}  │`,
+        "├─────────────────┤",
+        `│     ${status.padStart(5).padEnd(9)}     │`,
+        "└─────────────────┘",
+        "```"
     ].join("\n");
 }
 
@@ -2127,44 +2125,64 @@ client.on(Events.InteractionCreate, async interaction => {
             const account = getEconomyUser(interaction.guild.id, interaction.user.id);
             const lock = economyKey(interaction.guild.id, interaction.user.id);
 
-            if (!clampBet(account.balance, bet)) return interaction.reply({ content: `Bet must be at least 10 and no more than your ${coins(account.balance)} balance.`, ephemeral: true });
-            if (economyLocks.has(lock)) return interaction.reply({ content: "🎰 Your previous spin is still moving.", ephemeral: true });
+            if (!clampBet(account.balance, bet)) {
+                return interaction.reply({
+                    content: `Bet must be at least 10 and no more than your ${coins(account.balance)} balance.`,
+                    ephemeral: true
+                });
+            }
+
+            if (economyLocks.has(lock)) {
+                return interaction.reply({
+                    content: "🎰 Your previous spin is still moving.",
+                    ephemeral: true
+                });
+            }
 
             economyLocks.add(lock);
             account.balance -= bet;
             saveEconomy();
 
-            const spinRow = [weightedSlotSymbol(), weightedSlotSymbol(), weightedSlotSymbol()];
-
-            await interaction.reply({
-                embeds: [belovedEmbed("Pink Casino")
-                    .setDescription(renderSlotReels(spinRow, 0))
-                    .addFields({
-                        name: "Your spin",
-                        value: `Bet **${coins(bet)}**  •  Wallet **${coins(account.balance)}**`
-                    })
-                    .setFooter({ text: "Reels spinning…" })]
-            });
+            const finalRow = [weightedSlotSymbol(), weightedSlotSymbol(), weightedSlotSymbol()];
 
             try {
-                // Rapid reel movement, then lock each reel one at a time.
-                for (let frame = 0; frame < 9; frame++) {
-                    await new Promise(resolve => setTimeout(resolve, frame < 6 ? 280 : 450));
-                    const locked = Math.max(0, frame - 5);
-                    const animated = spinRow.map((symbol, index) => index < locked ? symbol : weightedSlotSymbol());
+                let animatedGrid = slotGrid();
+
+                await interaction.reply({
+                    embeds: [
+                        belovedEmbed("🎰 Slot Machine")
+                            .setDescription(renderSlotReels(animatedGrid, "SPINNING"))
+                            .addFields(
+                                { name: "Bet", value: coins(bet), inline: true },
+                                { name: "Balance", value: coins(account.balance), inline: true }
+                            )
+                            .setFooter({ text: `${interaction.user.username} • reels spinning` })
+                    ]
+                });
+
+                for (let frame = 0; frame < 8; frame++) {
+                    await new Promise(resolve => setTimeout(resolve, 350));
+                    animatedGrid = slotGrid();
+
+                    if (frame >= 5) animatedGrid[1][0] = finalRow[0];
+                    if (frame >= 6) animatedGrid[1][1] = finalRow[1];
+                    if (frame >= 7) animatedGrid[1][2] = finalRow[2];
 
                     await interaction.editReply({
-                        embeds: [belovedEmbed("Pink Casino")
-                            .setDescription(renderSlotReels(animated, Math.min(locked, 3)))
-                            .addFields({
-                                name: "Your spin",
-                                value: `Bet **${coins(bet)}**  •  Wallet **${coins(account.balance)}**`
-                            })
-                            .setFooter({ text: locked ? `Reel ${Math.min(locked, 3)} locked` : "Reels spinning…" })]
+                        embeds: [
+                            belovedEmbed("🎰 Slot Machine")
+                                .setDescription(renderSlotReels(animatedGrid, frame === 7 ? "LOCKED" : "SPINNING"))
+                                .addFields(
+                                    { name: "Bet", value: coins(bet), inline: true },
+                                    { name: "Balance", value: coins(account.balance), inline: true }
+                                )
+                                .setFooter({ text: `${interaction.user.username} • ${frame === 7 ? "reels locked" : "reels spinning"}` })
+                        ]
                     });
                 }
 
-                const result = evaluateSlots(spinRow, bet);
+                const finalGrid = slotGrid(finalRow);
+                const result = evaluateSlots(finalRow, bet);
                 account.balance += result.payout;
 
                 if (result.payout > bet) account.totalWon += result.payout - bet;
@@ -2172,33 +2190,30 @@ client.on(Events.InteractionCreate, async interaction => {
                 saveEconomy();
 
                 const net = result.payout - bet;
-                const status = net > 0 ? "YOU WON" : net === 0 ? "BET RETURNED" : "NO WIN";
-                const resultLine = net > 0
-                    ? `You won **${coins(result.payout)}** — **+${coins(net)} profit**`
+                const status = net > 0 ? "WIN" : net === 0 ? "PUSH" : "LOST";
+                const summary = net > 0
+                    ? `You won **${coins(result.payout)}** (**+${coins(net)} profit**).`
                     : net === 0
                         ? `Your **${coins(bet)}** bet was returned.`
-                        : `You lost **${coins(bet)}** this spin.`;
+                        : `You lost **${coins(bet)}**.`;
 
                 await interaction.editReply({
-                    embeds: [belovedEmbed(net > 0 ? "💗 Pink Casino Win" : net === 0 ? "🎀 Pink Casino Push" : "🖤 Pink Casino")
-                        .setDescription([
-                            "### 🎰  BELOVED SLOTS",
-                            "",
-                            `## ${spinRow.map(item => item.emoji).join("　　")}`,
-                            "",
-                            `**${status}**  •  ${result.label}`
-                        ].join("\n"))
-                        .addFields(
-                            { name: "Result", value: resultLine, inline: false },
-                            { name: "Payout", value: `**${coins(result.payout)}**`, inline: true },
-                            { name: "Wallet", value: `**${coins(account.balance)}**`, inline: true }
-                        )
-                        .setFooter({ text: net > 0 ? "Beloved Casino • Lucky spin" : "Beloved Casino • Try your luck again" })
-                        .setTimestamp()]
+                    embeds: [
+                        belovedEmbed("🎰 Slot Machine")
+                            .setDescription(renderSlotReels(finalGrid, status))
+                            .addFields(
+                                { name: result.label, value: summary, inline: false },
+                                { name: "Payout", value: coins(result.payout), inline: true },
+                                { name: "Balance", value: coins(account.balance), inline: true }
+                            )
+                            .setFooter({ text: `${interaction.user.username} • Beloved Casino` })
+                            .setTimestamp()
+                    ]
                 });
             } finally {
                 economyLocks.delete(lock);
             }
+
             return;
         }
 
