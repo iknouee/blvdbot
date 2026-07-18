@@ -1,4 +1,6 @@
 require('dotenv').config();
+
+const express = require('express');
 const {
     Client,
     GatewayIntentBits,
@@ -6,6 +8,18 @@ const {
     ActivityType,
 } = require('discord.js');
 
+// Render web server
+const app = express();
+
+app.get('/', (req, res) => {
+    res.send('Beloved bot is online');
+});
+
+app.listen(process.env.PORT || 3000, () => {
+    console.log(`Web server running on port ${process.env.PORT || 3000}`);
+});
+
+// Discord bot
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
 });
@@ -24,7 +38,7 @@ client.once(Events.ClientReady, () => {
     });
 });
 
-client.on(Events.InteractionCreate, async (interaction) => {
+client.on(Events.InteractionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName !== 'panic') return;
 
