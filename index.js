@@ -10,6 +10,8 @@ const {
     Events,
     ActivityType,
     SlashCommandBuilder,
+    ContextMenuCommandBuilder,
+    ApplicationCommandType,
     REST,
     Routes,
     PermissionFlagsBits,
@@ -1324,6 +1326,10 @@ const cancelReasons = [
 // ==================================================
 
 const commands = [
+    new ContextMenuCommandBuilder()
+        .setName("Clip this")
+        .setType(ApplicationCommandType.Message),
+
     new SlashCommandBuilder()
         .setName("love")
         .setDescription("Give someone Beloved's love")
@@ -1658,6 +1664,80 @@ client.once(Events.ClientReady, readyClient => {
 
 client.on(Events.InteractionCreate, async interaction => {
     try {
+        if (interaction.isMessageContextMenuCommand()) {
+            if (interaction.commandName !== "Clip this") return;
+
+            if (!interaction.inGuild()) {
+                return interaction.reply({
+                    content: "Clips can only be created inside the server.",
+                    ephemeral: true
+                });
+            }
+
+            const clippingChannelId = process.env.CLIPPING_CHANNEL_ID;
+            if (!clippingChannelId) {
+                return interaction.reply({
+                    content: "❌ `CLIPPING_CHANNEL_ID` has not been added to the bot's environment variables.",
+                    ephemeral: true
+                });
+            }
+
+            const clippingChannel = await interaction.guild.channels.fetch(clippingChannelId).catch(() => null);
+            if (!clippingChannel || !clippingChannel.isTextBased()) {
+                return interaction.reply({
+                    content: "❌ The configured clipping channel could not be found or is not a text channel.",
+                    ephemeral: true
+                });
+            }
+
+            const clippedMessage = interaction.targetMessage;
+            const messageText = clippedMessage.content?.trim() || "*No text — attachment/embed only.*";
+            const safeText = messageText.length > 3500
+                ? `${messageText.slice(0, 3497)}...`
+                : messageText;
+
+            const attachmentLinks = [...clippedMessage.attachments.values()]
+                .map(attachment => `[${attachment.name || "Attachment"}](${attachment.url})`);
+
+            const clipEmbed = belovedEmbed("📸 Caught in 4K")
+                .setAuthor({
+                    name: clippedMessage.author.tag,
+                    iconURL: clippedMessage.author.displayAvatarURL({ size: 256 })
+                })
+                .setDescription(safeText)
+                .addFields(
+                    { name: "👤 Sent by", value: `<@${clippedMessage.author.id}>`, inline: true },
+                    { name: "📍 Original channel", value: `<#${clippedMessage.channel.id}>`, inline: true },
+                    { name: "✂️ Clipped by", value: `<@${interaction.user.id}>`, inline: true },
+                    { name: "🔗 Evidence", value: `[Jump to the original message](${clippedMessage.url})`, inline: false }
+                )
+                .setFooter({ text: `Message ID: ${clippedMessage.id}` })
+                .setTimestamp(clippedMessage.createdAt);
+
+            if (attachmentLinks.length) {
+                clipEmbed.addFields({
+                    name: "📎 Attachments",
+                    value: attachmentLinks.join("\n").slice(0, 1024),
+                    inline: false
+                });
+
+                const firstImage = [...clippedMessage.attachments.values()].find(attachment =>
+                    attachment.contentType?.startsWith("image/")
+                );
+                if (firstImage) clipEmbed.setImage(firstImage.url);
+            }
+
+            await clippingChannel.send({
+                embeds: [clipEmbed],
+                allowedMentions: { parse: [] }
+            });
+
+            return interaction.reply({
+                content: `📸 Clipped! It has been sent to <#${clippingChannel.id}>.`,
+                ephemeral: true
+            });
+        }
+
         if (interaction.isButton()) {
 
             if (interaction.customId.startsWith("blackjack:")) {
