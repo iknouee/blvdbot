@@ -1387,7 +1387,7 @@ function countryPlayerLines(game, includeEliminated = true) {
     return players.map((player, index) => {
         const crown = index === 0 && game.status === "ended" ? "👑 " : "";
         const state = player.eliminated ? "💀 ELIMINATED" : `${"❤️".repeat(player.lives)}${"🖤".repeat(Math.max(0, game.startingLives - player.lives))}`;
-        return `${crown}<@${player.id}> — ${state} • **${player.score}** point${player.score === 1 ? "" : "s"}`;
+        return `${crown}<@${player.id}> — ${state} • **${player.score}** point${player.score === 1 ? "" : "s"} • misses **${player.misses || 0}/2**`;
     }).join("\n").slice(0, 3900);
 }
 
@@ -1400,59 +1400,74 @@ function countryLobbyButtons(gameId, disabled = false) {
 
 function countryLobbyEmbed(game) {
     return belovedEmbed("🌍 Guess the Country — Tournament Lobby")
-        .setDescription(`React with ${COUNTRY_JOIN_EMOJI} to enter!\n\n**How it works**\nEach round shows a **country flag image** or progressive clues, depending on the selected mode. The **first living player** to type the correct country is safe and earns a point. Everyone else loses a life. Lose all lives and you are eliminated.`)
+        .setDescription(`React with ${COUNTRY_JOIN_EMOJI} to enter!\n\n**How it works**\nEvery round always shows a **large country flag image**. The **first living player** to type the correct country is safe and earns a point. Other players gain a miss; every **2 misses** costs 1 life, so nobody gets eliminated too quickly.`)
         .addFields(
             { name: "🎮 Host", value: `<@${game.hostId}>`, inline: true },
             { name: "❤️ Lives", value: `${game.startingLives}`, inline: true },
             { name: "⏱️ Round time", value: `${game.roundSeconds} seconds`, inline: true },
-            { name: "🖼️ Game mode", value: game.mode === "flag" ? "Flag images" : game.mode === "clues" ? "Text clues" : "Mixed visuals + clues", inline: true },
+            { name: "🖼️ Game mode", value: "Flag images only", inline: true },
             { name: `👥 Players (${game.players.size})`, value: countryPlayerLines(game), inline: false },
             { name: "🚪 Lobby closes", value: `<t:${Math.floor(game.lobbyEndsAt / 1000)}:R>`, inline: false }
         )
-        .setFooter({ text: "Minimum 2 players • Host can press Start Now" })
+        .setFooter({ text: "Minimum 2 players • Game guesses and old rounds are cleaned automatically" })
         .setTimestamp();
 }
 
 function countryFlagUrl(question, width = 640) {
-    return `https://flagcdn.com/w${width}/${question.code}.png`;
+    return `https://flagcdn.com/w${width}/${question.code}.png?v=${Date.now()}`;
 }
 
-function countryRoundType(game) {
-    if (game.mode === "mixed") return Math.random() < 0.65 ? "flag" : "clues";
-    return game.mode;
+function countryRoundType() {
+    return "flag";
 }
 
 function countryRoundEmbed(game, question, hintLevel = 1) {
-    const isFlagRound = game.currentRoundType === "flag";
-    const title = isFlagRound ? "🚩 GUESS THIS FLAG" : "❓ WHICH COUNTRY IS IT?";
-    let description = `## ${title}\n\n`;
+    let description = "## 🚩 GUESS THIS FLAG\n\nLook closely at the flag image and type the country name in chat.\n\n**First correct living player wins the round!**";
+    if (hintLevel >= 2) description += `\n\n### 💡 Hint\n> ${question.hints[0]}`;
 
-    if (isFlagRound) {
-        description += "Look closely at the image and type the country name in chat.\n\n**First correct living player wins the round!**";
-    } else {
-        description += `### Clue 1\n> ${question.hints[0]}`;
-        if (hintLevel >= 2) description += `\n\n### Clue 2\n> ${question.hints[1]}`;
-        if (hintLevel >= 3) description += `\n\n### Final clue\n> ${question.hints[2]}`;
-        description += "\n\nType the country name in chat. First correct answer wins the round!";
-    }
-
-    const embed = belovedEmbed(`🌍 Guess the Country • Round ${game.round}`)
+    return belovedEmbed(`🌍 Guess the Country • Round ${game.round}`)
         .setDescription(description)
         .addFields(
-            { name: "🎨 Round type", value: isFlagRound ? "Flag image" : "Progressive clues", inline: true },
+            { name: "🎨 Round type", value: "Flag image", inline: true },
             { name: "⏳ Time remaining", value: `<t:${Math.floor(game.roundEndsAt / 1000)}:R>`, inline: true },
             { name: "🧍 Still alive", value: `${getAliveCountryPlayers(game).length}`, inline: true },
+            { name: "🛡️ Elimination rule", value: "2 missed rounds = 1 lost life", inline: false },
             { name: "🏆 Scores & lives", value: countryPlayerLines(game), inline: false }
         )
-        .setFooter({ text: "Spelling is flexible • Eliminated players become spectators" })
+        .setImage(countryFlagUrl(question))
+        .setFooter({ text: "Spelling is flexible • Guesses are cleared after each round • Eliminated players spectate" })
         .setTimestamp();
-
-    if (isFlagRound) embed.setImage(countryFlagUrl(question));
-    return embed;
 }
 
 function getAliveCountryPlayers(game) {
     return [...game.players.values()].filter(player => !player.eliminated);
+}
+
+async function deleteCountryMessages(game, { deleteRoundMessage = false, deleteLobbyMessage = false } = {}) {
+    if (!game?.channel?.isTextBased()) return;
+
+    const ids = [...(game.guessMessageIds || new Set())];
+    game.guessMessageIds?.clear();
+
+    if (ids.length) {
+        try {
+            await game.channel.bulkDelete(ids, true);
+        } catch (error) {
+            for (const id of ids) {
+                await game.channel.messages.delete(id).catch(() => {});
+            }
+        }
+    }
+
+    if (deleteRoundMessage && game.roundMessage) {
+        await game.roundMessage.delete().catch(() => {});
+        game.roundMessage = null;
+    }
+
+    if (deleteLobbyMessage && game.message) {
+        await game.message.delete().catch(() => {});
+        game.message = null;
+    }
 }
 
 async function updateCountryLobby(game) {
@@ -1476,33 +1491,39 @@ async function endCountryGame(game, reason = "winner") {
     else if (reason === "not-enough") description = `At least **2 players** were needed to begin.`;
     else if (winner) description = `# 👑 <@${winner.id}> WINS!\nThey survived **${game.round} round${game.round === 1 ? "" : "s"}** with **${winner.score} point${winner.score === 1 ? "" : "s"}**.`;
     else description = "Nobody survived the country chaos.";
-    const embed = belovedEmbed(title).setDescription(description).addFields({ name: "📊 Final standings", value: countryPlayerLines(game) }).setFooter({ text: "Beloved Geography Department" }).setTimestamp();
-    if (game.message) await game.message.edit({ embeds: [embed], components: [countryLobbyButtons(game.id, true)] }).catch(() => {});
-    if (game.roundMessage && game.roundMessage.id !== game.message?.id) await game.roundMessage.edit({ components: [] }).catch(() => {});
+    const embed = belovedEmbed(title).setDescription(description).addFields({ name: "📊 Final standings", value: countryPlayerLines(game) }).setFooter({ text: "Beloved Geography Department • Game chat cleaned automatically" }).setTimestamp();
+
+    await deleteCountryMessages(game, { deleteRoundMessage: true, deleteLobbyMessage: true });
+    await game.channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => {});
 }
 
 async function startCountryRound(game) {
     if (!game || game.status === "ended") return;
     const alive = getAliveCountryPlayers(game);
     if (alive.length <= 1) return endCountryGame(game, "winner");
+
+    // Remove the previous round, its result, and all guesses so the newest flag
+    // always appears at the bottom of the channel. Only game-related messages are deleted.
+    await deleteCountryMessages(game, {
+        deleteRoundMessage: true,
+        deleteLobbyMessage: game.round === 0
+    });
+
     game.status = "round";
     game.round += 1;
     game.roundResolved = false;
+    game.guessMessageIds = new Set();
     let choices = COUNTRY_QUESTIONS.filter(item => !game.usedCountries.has(item.country));
     if (!choices.length) { game.usedCountries.clear(); choices = COUNTRY_QUESTIONS; }
     game.currentQuestion = randomItem(choices);
-    game.currentRoundType = countryRoundType(game);
+    game.currentRoundType = "flag";
     game.usedCountries.add(game.currentQuestion.country);
     game.roundEndsAt = Date.now() + game.roundSeconds * 1000;
     const payload = { embeds: [countryRoundEmbed(game, game.currentQuestion, 1)], components: [] };
-    if (game.roundMessage) game.roundMessage = await game.roundMessage.edit(payload).catch(() => null);
-    if (!game.roundMessage) game.roundMessage = await game.channel.send(payload);
+    game.roundMessage = await game.channel.send(payload);
     game.hintTimer = setTimeout(async () => {
         if (game.status !== "round" || game.roundResolved) return;
         const embed = countryRoundEmbed(game, game.currentQuestion, 2);
-        if (game.currentRoundType === "flag") {
-            embed.addFields({ name: "💡 Hint", value: game.currentQuestion.hints[0], inline: false });
-        }
         await game.roundMessage.edit({ embeds: [embed] }).catch(() => {});
     }, Math.floor(game.roundSeconds * 500));
     game.roundTimer = setTimeout(() => resolveCountryRound(game, null).catch(console.error), game.roundSeconds * 1000);
@@ -1516,18 +1537,32 @@ async function resolveCountryRound(game, winnerId) {
     const aliveBefore = getAliveCountryPlayers(game);
     if (winnerId && game.players.has(winnerId)) game.players.get(winnerId).score += 1;
     const eliminatedNow = [];
+    const lostLifeNow = [];
     for (const player of aliveBefore) {
-        if (player.id === winnerId) continue;
-        player.lives -= 1;
-        if (player.lives <= 0) { player.lives = 0; player.eliminated = true; eliminatedNow.push(player.id); }
+        if (player.id === winnerId) {
+            player.misses = 0;
+            continue;
+        }
+        player.misses = (player.misses || 0) + 1;
+        if (player.misses >= 2) {
+            player.misses = 0;
+            player.lives -= 1;
+            lostLifeNow.push(player.id);
+            if (player.lives <= 0) {
+                player.lives = 0;
+                player.eliminated = true;
+                eliminatedNow.push(player.id);
+            }
+        }
     }
     const answer = `${game.currentQuestion.flag} **${game.currentQuestion.country}**`;
-    const resultText = winnerId ? `⚡ <@${winnerId}> guessed first and is **SAFE**!` : "⏰ Nobody answered in time. Every living player lost a life!";
+    const resultText = winnerId ? `⚡ <@${winnerId}> guessed first, earns a point, and clears their misses!` : "⏰ Nobody answered in time. Every living player gained 1 miss.";
+    const lifeLossText = lostLifeNow.length ? `\n\n💔 **Lost a life:** ${lostLifeNow.map(id => `<@${id}>`).join(", ")}` : "";
     const eliminationText = eliminatedNow.length ? `\n\n💀 **Eliminated:** ${eliminatedNow.map(id => `<@${id}>`).join(", ")}` : "";
     const embed = belovedEmbed(`✅ Round ${game.round} Complete`)
         .setDescription(`${resultText}
 
-The answer was ${answer}.${eliminationText}`)
+The answer was ${answer}.${lifeLossText}${eliminationText}`)
         .addFields(
             { name: "🧠 Extra fact", value: game.currentQuestion.hints[2], inline: false },
             { name: "📊 Tournament status", value: countryPlayerLines(game), inline: false }
@@ -1739,14 +1774,9 @@ const commands = [
     new SlashCommandBuilder()
         .setName("countrygame")
         .setDescription("Start an elimination Guess the Country tournament")
-        .addIntegerOption(option => option.setName("lives").setDescription("Lives per player (1-3)").setMinValue(1).setMaxValue(3).setRequired(false))
+        .addIntegerOption(option => option.setName("lives").setDescription("Lives per player (3-10, default 5)").setMinValue(3).setMaxValue(10).setRequired(false))
         .addIntegerOption(option => option.setName("lobby").setDescription("Join time in seconds (15-60)").setMinValue(15).setMaxValue(60).setRequired(false))
-        .addIntegerOption(option => option.setName("roundtime").setDescription("Seconds per country (10-30)").setMinValue(10).setMaxValue(30).setRequired(false))
-        .addStringOption(option => option.setName("mode").setDescription("Choose the type of country rounds").setRequired(false).addChoices(
-            { name: "Mixed — flags and clues", value: "mixed" },
-            { name: "Flag images only", value: "flag" },
-            { name: "Clues only", value: "clues" }
-        )),
+        .addIntegerOption(option => option.setName("roundtime").setDescription("Seconds per flag (15-45, default 25)").setMinValue(15).setMaxValue(45).setRequired(false)),
 
     new SlashCommandBuilder()
         .setName("conflict")
@@ -2795,19 +2825,20 @@ client.on(Events.InteractionCreate, async interaction => {
         if (command === "countrygame") {
             if (!interaction.inGuild()) return interaction.reply({ content: "This game can only be played in a server.", ephemeral: true });
             if (countryGameByChannel.has(interaction.channel.id)) return interaction.reply({ content: "🌍 A country tournament is already active in this channel.", ephemeral: true });
-            const startingLives = interaction.options.getInteger("lives") || 2;
+            const startingLives = interaction.options.getInteger("lives") || 5;
             const lobbySeconds = interaction.options.getInteger("lobby") || 30;
-            const roundSeconds = interaction.options.getInteger("roundtime") || 20;
-            const mode = interaction.options.getString("mode") || "mixed";
+            const roundSeconds = interaction.options.getInteger("roundtime") || 25;
+            const mode = "flag";
             const gameId = interaction.id;
             const game = {
                 id: gameId, guildId: interaction.guild.id, channelId: interaction.channel.id, channel: interaction.channel,
                 hostId: interaction.user.id, startingLives, roundSeconds, mode, status: "lobby", round: 0,
                 players: new Map(), usedCountries: new Set(), currentQuestion: null, message: null, roundMessage: null,
+                guessMessageIds: new Set(),
                 lobbyEndsAt: Date.now() + lobbySeconds * 1000, roundEndsAt: 0, roundResolved: false,
                 lobbyTimer: null, roundTimer: null, hintTimer: null
             };
-            game.players.set(interaction.user.id, { id: interaction.user.id, lives: startingLives, score: 0, eliminated: false });
+            game.players.set(interaction.user.id, { id: interaction.user.id, lives: startingLives, score: 0, misses: 0, eliminated: false });
             activeCountryGames.set(gameId, game);
             countryGameByChannel.set(interaction.channel.id, gameId);
             await interaction.reply({ embeds: [countryLobbyEmbed(game)], components: [countryLobbyButtons(gameId)], fetchReply: true });
@@ -2993,7 +3024,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         const game = [...activeCountryGames.values()].find(item => item.message?.id === reaction.message.id);
         if (!game || game.status !== "lobby") return;
         if (!game.players.has(user.id)) {
-            game.players.set(user.id, { id: user.id, lives: game.startingLives, score: 0, eliminated: false });
+            game.players.set(user.id, { id: user.id, lives: game.startingLives, score: 0, misses: 0, eliminated: false });
             await updateCountryLobby(game);
         }
     } catch (error) {
@@ -3030,6 +3061,7 @@ client.on(Events.MessageCreate, async message => {
         if (countryGame && countryGame.status === "round" && !countryGame.roundResolved) {
             const player = countryGame.players.get(message.author.id);
             if (player && !player.eliminated) {
+                countryGame.guessMessageIds.add(message.id);
                 const guess = normaliseCountryGuess(message.content);
                 const correct = countryGame.currentQuestion.aliases.some(alias => normaliseCountryGuess(alias) === guess);
                 if (correct) {
