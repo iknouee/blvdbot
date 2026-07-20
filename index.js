@@ -19,7 +19,8 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    EmbedBuilder
+    EmbedBuilder,
+    Partials
 } = require("discord.js");
 
 
@@ -47,8 +48,10 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
-    ]
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessageReactions
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
 
@@ -1322,6 +1325,192 @@ const cancelReasons = [
 
 
 // ==================================================
+// GUESS THE COUNTRY TOURNAMENT
+// ==================================================
+
+const activeCountryGames = new Map();
+const countryGameByChannel = new Map();
+const COUNTRY_JOIN_EMOJI = "🌍";
+
+const COUNTRY_QUESTIONS = [
+    { country: "France", flag: "🇫🇷", aliases: ["france"], hints: ["The Eiffel Tower is here.", "Its capital is Paris.", "Famous for croissants and the Louvre."] },
+    { country: "Japan", flag: "🇯🇵", aliases: ["japan"], hints: ["This island nation is in East Asia.", "Its capital is Tokyo.", "Famous for anime, sushi, and Mount Fuji."] },
+    { country: "Brazil", flag: "🇧🇷", aliases: ["brazil", "brasil"], hints: ["The largest country in South America.", "The Amazon rainforest covers much of it.", "Famous for carnival and football."] },
+    { country: "Canada", flag: "🇨🇦", aliases: ["canada"], hints: ["It has the world's longest coastline.", "Its capital is Ottawa.", "Its flag features a maple leaf."] },
+    { country: "Italy", flag: "🇮🇹", aliases: ["italy"], hints: ["This country is shaped like a boot.", "Its capital is Rome.", "Famous for pizza, pasta, and the Colosseum."] },
+    { country: "Egypt", flag: "🇪🇬", aliases: ["egypt"], hints: ["The River Nile runs through it.", "Its capital is Cairo.", "Home of the Great Pyramids of Giza."] },
+    { country: "Australia", flag: "🇦🇺", aliases: ["australia"], hints: ["It is both a country and a continent.", "Its capital is Canberra.", "Known for kangaroos and the Great Barrier Reef."] },
+    { country: "India", flag: "🇮🇳", aliases: ["india"], hints: ["It is the world's most populous country.", "Its capital is New Delhi.", "The Taj Mahal is here."] },
+    { country: "Mexico", flag: "🇲🇽", aliases: ["mexico"], hints: ["It borders the United States to the north.", "Its capital is Mexico City.", "Famous for tacos and ancient Maya sites."] },
+    { country: "South Korea", flag: "🇰🇷", aliases: ["south korea", "korea", "republic of korea"], hints: ["This East Asian country shares a peninsula with North Korea.", "Its capital is Seoul.", "Known worldwide for K-pop and K-dramas."] },
+    { country: "United Kingdom", flag: "🇬🇧", aliases: ["united kingdom", "uk", "great britain", "britain"], hints: ["It consists of four nations.", "Its capital is London.", "Big Ben and Buckingham Palace are here."] },
+    { country: "United States", flag: "🇺🇸", aliases: ["united states", "usa", "us", "america", "united states of america"], hints: ["It has 50 states.", "Its capital is Washington, D.C.", "Its flag is known as the Stars and Stripes."] },
+    { country: "Spain", flag: "🇪🇸", aliases: ["spain"], hints: ["It occupies most of the Iberian Peninsula.", "Its capital is Madrid.", "Famous for flamenco and paella."] },
+    { country: "Germany", flag: "🇩🇪", aliases: ["germany"], hints: ["This country is in central Europe.", "Its capital is Berlin.", "Known for Oktoberfest and the Autobahn."] },
+    { country: "Greece", flag: "🇬🇷", aliases: ["greece"], hints: ["Often called the birthplace of democracy.", "Its capital is Athens.", "The Acropolis is here."] },
+    { country: "China", flag: "🇨🇳", aliases: ["china", "people's republic of china", "peoples republic of china", "prc"], hints: ["This country is in East Asia.", "Its capital is Beijing.", "The Great Wall runs across its north."] },
+    { country: "Argentina", flag: "🇦🇷", aliases: ["argentina"], hints: ["This country lies in southern South America.", "Its capital is Buenos Aires.", "Famous for tango and Lionel Messi."] },
+    { country: "Turkey", flag: "🇹🇷", aliases: ["turkey", "turkiye", "türkiye"], hints: ["It spans Europe and Asia.", "Its capital is Ankara.", "Istanbul is its largest city."] },
+    { country: "Thailand", flag: "🇹🇭", aliases: ["thailand"], hints: ["This Southeast Asian country was formerly called Siam.", "Its capital is Bangkok.", "Known for temples, beaches, and pad thai."] },
+    { country: "Saudi Arabia", flag: "🇸🇦", aliases: ["saudi arabia", "saudi"], hints: ["It occupies most of the Arabian Peninsula.", "Its capital is Riyadh.", "Mecca and Medina are here."] },
+    { country: "Nigeria", flag: "🇳🇬", aliases: ["nigeria"], hints: ["It is Africa's most populous country.", "Its capital is Abuja.", "Its film industry is called Nollywood."] },
+    { country: "South Africa", flag: "🇿🇦", aliases: ["south africa"], hints: ["It has three capital cities.", "Nelson Mandela became its first Black president.", "Table Mountain overlooks Cape Town."] },
+    { country: "Kenya", flag: "🇰🇪", aliases: ["kenya"], hints: ["This East African country sits on the equator.", "Its capital is Nairobi.", "Known for safaris and elite distance runners."] },
+    { country: "Morocco", flag: "🇲🇦", aliases: ["morocco"], hints: ["This North African country borders the Atlantic and Mediterranean.", "Its capital is Rabat.", "Marrakesh and the Atlas Mountains are here."] },
+    { country: "Portugal", flag: "🇵🇹", aliases: ["portugal"], hints: ["It is the westernmost country of mainland Europe.", "Its capital is Lisbon.", "Famous for port wine and Cristiano Ronaldo."] },
+    { country: "Netherlands", flag: "🇳🇱", aliases: ["netherlands", "the netherlands", "holland"], hints: ["Much of this European country lies below sea level.", "Its capital is Amsterdam.", "Known for windmills, canals, and tulips."] },
+    { country: "Switzerland", flag: "🇨🇭", aliases: ["switzerland"], hints: ["This Alpine country is famously neutral.", "Its capital is Bern.", "Known for watches, chocolate, and mountains."] },
+    { country: "Sweden", flag: "🇸🇪", aliases: ["sweden"], hints: ["This Nordic country is part of Scandinavia.", "Its capital is Stockholm.", "IKEA and Spotify started here."] },
+    { country: "Norway", flag: "🇳🇴", aliases: ["norway"], hints: ["This Nordic country is famous for fjords.", "Its capital is Oslo.", "Its coastline faces the North Atlantic and Arctic oceans."] },
+    { country: "Finland", flag: "🇫🇮", aliases: ["finland"], hints: ["It is known as the land of a thousand lakes.", "Its capital is Helsinki.", "Saunas are a major part of its culture."] },
+    { country: "Ireland", flag: "🇮🇪", aliases: ["ireland", "republic of ireland"], hints: ["This island country lies west of Great Britain.", "Its capital is Dublin.", "Its national symbol is the harp."] },
+    { country: "New Zealand", flag: "🇳🇿", aliases: ["new zealand", "nz", "aotearoa"], hints: ["This Pacific nation has North and South Islands.", "Its capital is Wellington.", "The Lord of the Rings films were shot here."] },
+    { country: "Indonesia", flag: "🇮🇩", aliases: ["indonesia"], hints: ["This Southeast Asian nation contains thousands of islands.", "Jakarta is its largest city.", "Bali is one of its most famous islands."] },
+    { country: "Philippines", flag: "🇵🇭", aliases: ["philippines", "the philippines"], hints: ["This Southeast Asian archipelago has over 7,000 islands.", "Its capital is Manila.", "It was named after a Spanish king."] },
+    { country: "Vietnam", flag: "🇻🇳", aliases: ["vietnam", "viet nam"], hints: ["This long, narrow country is in Southeast Asia.", "Its capital is Hanoi.", "Known for pho and Ha Long Bay."] },
+    { country: "Pakistan", flag: "🇵🇰", aliases: ["pakistan"], hints: ["This South Asian country borders India and Afghanistan.", "Its capital is Islamabad.", "K2 lies on its northern border region."] },
+    { country: "Bangladesh", flag: "🇧🇩", aliases: ["bangladesh"], hints: ["This densely populated country lies on the Bay of Bengal.", "Its capital is Dhaka.", "Most of it sits in the Ganges-Brahmaputra delta."] },
+    { country: "United Arab Emirates", flag: "🇦🇪", aliases: ["united arab emirates", "uae", "emirates"], hints: ["This Gulf country is a federation of seven emirates.", "Its capital is Abu Dhabi.", "Dubai and the Burj Khalifa are here."] },
+    { country: "Iceland", flag: "🇮🇸", aliases: ["iceland"], hints: ["This Nordic island sits in the North Atlantic.", "Its capital is Reykjavik.", "Known for volcanoes, glaciers, and geysers."] },
+    { country: "Jamaica", flag: "🇯🇲", aliases: ["jamaica"], hints: ["This Caribbean island nation lies south of Cuba.", "Its capital is Kingston.", "Reggae and Bob Marley are closely associated with it."] }
+];
+
+function normaliseCountryGuess(text) {
+    return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function countryPlayerLines(game, includeEliminated = true) {
+    const players = [...game.players.values()]
+        .filter(player => includeEliminated || !player.eliminated)
+        .sort((a, b) => Number(a.eliminated) - Number(b.eliminated) || b.score - a.score || b.lives - a.lives);
+    if (!players.length) return "Nobody has joined yet.";
+    return players.map((player, index) => {
+        const crown = index === 0 && game.status === "ended" ? "👑 " : "";
+        const state = player.eliminated ? "💀 ELIMINATED" : `${"❤️".repeat(player.lives)}${"🖤".repeat(Math.max(0, game.startingLives - player.lives))}`;
+        return `${crown}<@${player.id}> — ${state} • **${player.score}** point${player.score === 1 ? "" : "s"}`;
+    }).join("\n").slice(0, 3900);
+}
+
+function countryLobbyButtons(gameId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`country:start:${gameId}`).setLabel("Start Now").setEmoji("▶️").setStyle(ButtonStyle.Success).setDisabled(disabled),
+        new ButtonBuilder().setCustomId(`country:cancel:${gameId}`).setLabel("Cancel").setEmoji("✖️").setStyle(ButtonStyle.Danger).setDisabled(disabled)
+    );
+}
+
+function countryLobbyEmbed(game) {
+    return belovedEmbed("🌍 Guess the Country — Tournament Lobby")
+        .setDescription(`React with ${COUNTRY_JOIN_EMOJI} to enter!\n\n**How it works**\nA country is described with clues. The **first living player** to type the correct country is safe and earns a point. Everyone else loses a life. Lose all lives and you are eliminated.`)
+        .addFields(
+            { name: "🎮 Host", value: `<@${game.hostId}>`, inline: true },
+            { name: "❤️ Lives", value: `${game.startingLives}`, inline: true },
+            { name: "⏱️ Round time", value: `${game.roundSeconds} seconds`, inline: true },
+            { name: `👥 Players (${game.players.size})`, value: countryPlayerLines(game), inline: false },
+            { name: "🚪 Lobby closes", value: `<t:${Math.floor(game.lobbyEndsAt / 1000)}:R>`, inline: false }
+        )
+        .setFooter({ text: "Minimum 2 players • Host can press Start Now" })
+        .setTimestamp();
+}
+
+function countryRoundEmbed(game, question) {
+    return belovedEmbed(`🌍 Guess the Country • Round ${game.round}`)
+        .setDescription(`## ❓ WHICH COUNTRY IS IT?\n\n### Clue 1\n> ${question.hints[0]}\n\nType the country name in chat. First correct answer wins the round!`)
+        .addFields(
+            { name: "⏳ Time remaining", value: `<t:${Math.floor(game.roundEndsAt / 1000)}:R>`, inline: true },
+            { name: "🧍 Still alive", value: `${getAliveCountryPlayers(game).length}`, inline: true },
+            { name: "🏆 Scores & lives", value: countryPlayerLines(game), inline: false }
+        )
+        .setFooter({ text: "Spelling is flexible • Eliminated players cannot answer" })
+        .setTimestamp();
+}
+
+function getAliveCountryPlayers(game) {
+    return [...game.players.values()].filter(player => !player.eliminated);
+}
+
+async function updateCountryLobby(game) {
+    if (!game.message || game.status !== "lobby") return;
+    await game.message.edit({ embeds: [countryLobbyEmbed(game)], components: [countryLobbyButtons(game.id)] }).catch(() => {});
+}
+
+async function endCountryGame(game, reason = "winner") {
+    if (!game || game.status === "ended") return;
+    game.status = "ended";
+    clearTimeout(game.lobbyTimer);
+    clearTimeout(game.roundTimer);
+    clearTimeout(game.hintTimer);
+    activeCountryGames.delete(game.id);
+    countryGameByChannel.delete(game.channelId);
+    const ranked = [...game.players.values()].sort((a, b) => Number(a.eliminated) - Number(b.eliminated) || b.lives - a.lives || b.score - a.score);
+    const winner = ranked[0];
+    const title = reason === "cancelled" ? "✖️ Country Game Cancelled" : reason === "not-enough" ? "😔 Country Game Cancelled" : "🏆 Guess the Country Champion";
+    let description;
+    if (reason === "cancelled") description = `The tournament was cancelled by <@${game.hostId}>.`;
+    else if (reason === "not-enough") description = `At least **2 players** were needed to begin.`;
+    else if (winner) description = `# 👑 <@${winner.id}> WINS!\nThey survived **${game.round} round${game.round === 1 ? "" : "s"}** with **${winner.score} point${winner.score === 1 ? "" : "s"}**.`;
+    else description = "Nobody survived the country chaos.";
+    const embed = belovedEmbed(title).setDescription(description).addFields({ name: "📊 Final standings", value: countryPlayerLines(game) }).setFooter({ text: "Beloved Geography Department" }).setTimestamp();
+    if (game.message) await game.message.edit({ embeds: [embed], components: [countryLobbyButtons(game.id, true)] }).catch(() => {});
+    if (game.roundMessage && game.roundMessage.id !== game.message?.id) await game.roundMessage.edit({ components: [] }).catch(() => {});
+}
+
+async function startCountryRound(game) {
+    if (!game || game.status === "ended") return;
+    const alive = getAliveCountryPlayers(game);
+    if (alive.length <= 1) return endCountryGame(game, "winner");
+    game.status = "round";
+    game.round += 1;
+    game.roundResolved = false;
+    let choices = COUNTRY_QUESTIONS.filter(item => !game.usedCountries.has(item.country));
+    if (!choices.length) { game.usedCountries.clear(); choices = COUNTRY_QUESTIONS; }
+    game.currentQuestion = randomItem(choices);
+    game.usedCountries.add(game.currentQuestion.country);
+    game.roundEndsAt = Date.now() + game.roundSeconds * 1000;
+    const payload = { embeds: [countryRoundEmbed(game, game.currentQuestion)], components: [] };
+    if (game.roundMessage) game.roundMessage = await game.roundMessage.edit(payload).catch(() => null);
+    if (!game.roundMessage) game.roundMessage = await game.channel.send(payload);
+    game.hintTimer = setTimeout(async () => {
+        if (game.status !== "round" || game.roundResolved) return;
+        const embed = countryRoundEmbed(game, game.currentQuestion);
+        embed.setDescription(`## ❓ WHICH COUNTRY IS IT?\n\n### Clue 1\n> ${game.currentQuestion.hints[0]}\n\n### Clue 2\n> ${game.currentQuestion.hints[1]}\n\nType the country name in chat. First correct answer wins the round!`);
+        await game.roundMessage.edit({ embeds: [embed] }).catch(() => {});
+    }, Math.floor(game.roundSeconds * 500));
+    game.roundTimer = setTimeout(() => resolveCountryRound(game, null).catch(console.error), game.roundSeconds * 1000);
+}
+
+async function resolveCountryRound(game, winnerId) {
+    if (!game || game.status !== "round" || game.roundResolved) return;
+    game.roundResolved = true;
+    clearTimeout(game.roundTimer);
+    clearTimeout(game.hintTimer);
+    const aliveBefore = getAliveCountryPlayers(game);
+    if (winnerId && game.players.has(winnerId)) game.players.get(winnerId).score += 1;
+    const eliminatedNow = [];
+    for (const player of aliveBefore) {
+        if (player.id === winnerId) continue;
+        player.lives -= 1;
+        if (player.lives <= 0) { player.lives = 0; player.eliminated = true; eliminatedNow.push(player.id); }
+    }
+    const answer = `${game.currentQuestion.flag} **${game.currentQuestion.country}**`;
+    const resultText = winnerId ? `⚡ <@${winnerId}> guessed first and is **SAFE**!` : "⏰ Nobody answered in time. Every living player lost a life!";
+    const eliminationText = eliminatedNow.length ? `\n\n💀 **Eliminated:** ${eliminatedNow.map(id => `<@${id}>`).join(", ")}` : "";
+    const embed = belovedEmbed(`✅ Round ${game.round} Complete`).setDescription(`${resultText}\n\nThe answer was ${answer}.${eliminationText}`).addFields({ name: "📊 Tournament status", value: countryPlayerLines(game) }).setFooter({ text: "Next round begins in 4 seconds" }).setTimestamp();
+    await game.roundMessage.edit({ embeds: [embed] }).catch(() => {});
+    if (getAliveCountryPlayers(game).length <= 1) return setTimeout(() => endCountryGame(game, "winner").catch(console.error), 4000);
+    game.status = "between";
+    setTimeout(() => startCountryRound(game).catch(console.error), 4000);
+}
+
+async function startCountryGame(game) {
+    if (!game || game.status !== "lobby") return;
+    clearTimeout(game.lobbyTimer);
+    if (game.players.size < 2) return endCountryGame(game, "not-enough");
+    game.status = "starting";
+    await game.message.edit({ embeds: [belovedEmbed("🌍 Tournament Starting!").setDescription(`**${game.players.size} players** have entered.\n\nGet ready — the first country appears in **3 seconds**!`).addFields({ name: "👥 Competitors", value: countryPlayerLines(game) }).setTimestamp()], components: [countryLobbyButtons(game.id, true)] }).catch(() => {});
+    setTimeout(() => startCountryRound(game).catch(console.error), 3000);
+}
+
+// ==================================================
 // SLASH COMMANDS
 // ==================================================
 
@@ -1506,6 +1695,13 @@ const commands = [
     new SlashCommandBuilder()
         .setName("wheel")
         .setDescription("Spin the wheel and select a random server member"),
+
+    new SlashCommandBuilder()
+        .setName("countrygame")
+        .setDescription("Start an elimination Guess the Country tournament")
+        .addIntegerOption(option => option.setName("lives").setDescription("Lives per player (1-3)").setMinValue(1).setMaxValue(3).setRequired(false))
+        .addIntegerOption(option => option.setName("lobby").setDescription("Join time in seconds (15-60)").setMinValue(15).setMaxValue(60).setRequired(false))
+        .addIntegerOption(option => option.setName("roundtime").setDescription("Seconds per country (10-30)").setMinValue(10).setMaxValue(30).setRequired(false)),
 
     new SlashCommandBuilder()
         .setName("conflict")
@@ -1838,6 +2034,21 @@ client.on(Events.InteractionCreate, async interaction => {
                 }
                 game.turn = defender;
                 return interaction.update({ embeds: [buildFightEmbed(game)], components: [buildFightButtons(gameId)] });
+            }
+
+            if (interaction.customId.startsWith("country:")) {
+                const [, action, gameId] = interaction.customId.split(":");
+                const game = activeCountryGames.get(gameId);
+                if (!game || game.status !== "lobby") return interaction.reply({ content: "This country lobby is no longer open.", ephemeral: true });
+                if (interaction.user.id !== game.hostId) return interaction.reply({ content: "Only the host can control this tournament.", ephemeral: true });
+                if (action === "start") {
+                    await interaction.deferUpdate();
+                    return startCountryGame(game);
+                }
+                if (action === "cancel") {
+                    await interaction.deferUpdate();
+                    return endCountryGame(game, "cancelled");
+                }
             }
 
             if (!interaction.customId.startsWith("sop:")) return;
@@ -2536,6 +2747,30 @@ client.on(Events.InteractionCreate, async interaction => {
             return interaction.editReply({ embeds: [embed], allowedMentions: { users: [selected.id] } });
         }
 
+        if (command === "countrygame") {
+            if (!interaction.inGuild()) return interaction.reply({ content: "This game can only be played in a server.", ephemeral: true });
+            if (countryGameByChannel.has(interaction.channel.id)) return interaction.reply({ content: "🌍 A country tournament is already active in this channel.", ephemeral: true });
+            const startingLives = interaction.options.getInteger("lives") || 2;
+            const lobbySeconds = interaction.options.getInteger("lobby") || 30;
+            const roundSeconds = interaction.options.getInteger("roundtime") || 20;
+            const gameId = interaction.id;
+            const game = {
+                id: gameId, guildId: interaction.guild.id, channelId: interaction.channel.id, channel: interaction.channel,
+                hostId: interaction.user.id, startingLives, roundSeconds, status: "lobby", round: 0,
+                players: new Map(), usedCountries: new Set(), currentQuestion: null, message: null, roundMessage: null,
+                lobbyEndsAt: Date.now() + lobbySeconds * 1000, roundEndsAt: 0, roundResolved: false,
+                lobbyTimer: null, roundTimer: null, hintTimer: null
+            };
+            game.players.set(interaction.user.id, { id: interaction.user.id, lives: startingLives, score: 0, eliminated: false });
+            activeCountryGames.set(gameId, game);
+            countryGameByChannel.set(interaction.channel.id, gameId);
+            await interaction.reply({ embeds: [countryLobbyEmbed(game)], components: [countryLobbyButtons(gameId)], fetchReply: true });
+            game.message = await interaction.fetchReply();
+            await game.message.react(COUNTRY_JOIN_EMOJI).catch(() => {});
+            game.lobbyTimer = setTimeout(() => startCountryGame(game).catch(console.error), lobbySeconds * 1000);
+            return;
+        }
+
         if (command === "conflict") {
             if (!interaction.guild) {
                 return interaction.reply({
@@ -2700,6 +2935,41 @@ client.on(Events.InteractionCreate, async interaction => {
 
 
 // ==================================================
+// COUNTRY GAME REACTION JOINING
+// ==================================================
+
+client.on(Events.MessageReactionAdd, async (reaction, user) => {
+    try {
+        if (user.bot) return;
+        if (reaction.partial) await reaction.fetch().catch(() => null);
+        if (reaction.message.partial) await reaction.message.fetch().catch(() => null);
+        if (reaction.emoji.name !== COUNTRY_JOIN_EMOJI) return;
+        const game = [...activeCountryGames.values()].find(item => item.message?.id === reaction.message.id);
+        if (!game || game.status !== "lobby") return;
+        if (!game.players.has(user.id)) {
+            game.players.set(user.id, { id: user.id, lives: game.startingLives, score: 0, eliminated: false });
+            await updateCountryLobby(game);
+        }
+    } catch (error) {
+        console.error("Country join reaction error:", error);
+    }
+});
+
+client.on(Events.MessageReactionRemove, async (reaction, user) => {
+    try {
+        if (user.bot) return;
+        if (reaction.partial) await reaction.fetch().catch(() => null);
+        if (reaction.message.partial) await reaction.message.fetch().catch(() => null);
+        if (reaction.emoji.name !== COUNTRY_JOIN_EMOJI) return;
+        const game = [...activeCountryGames.values()].find(item => item.message?.id === reaction.message.id);
+        if (!game || game.status !== "lobby" || user.id === game.hostId) return;
+        if (game.players.delete(user.id)) await updateCountryLobby(game);
+    } catch (error) {
+        console.error("Country leave reaction error:", error);
+    }
+});
+
+// ==================================================
 // MESSAGE HANDLER
 // ==================================================
 
@@ -2709,6 +2979,21 @@ client.on(Events.MessageCreate, async message => {
     }
 
     try {
+        const countryGameId = countryGameByChannel.get(message.channel.id);
+        const countryGame = countryGameId ? activeCountryGames.get(countryGameId) : null;
+        if (countryGame && countryGame.status === "round" && !countryGame.roundResolved) {
+            const player = countryGame.players.get(message.author.id);
+            if (player && !player.eliminated) {
+                const guess = normaliseCountryGuess(message.content);
+                const correct = countryGame.currentQuestion.aliases.some(alias => normaliseCountryGuess(alias) === guess);
+                if (correct) {
+                    await message.react("✅").catch(() => {});
+                    await resolveCountryRound(countryGame, message.author.id);
+                    return;
+                }
+            }
+        }
+
         await processConflictMessage(message);
 
         if (
