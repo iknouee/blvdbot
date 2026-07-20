@@ -1331,48 +1331,288 @@ const cancelReasons = [
 const activeCountryGames = new Map();
 const countryGameByChannel = new Map();
 const COUNTRY_JOIN_EMOJI = "🌍";
+const countrySeenByChannel = new Map();
+
+function chooseCountryQuestion(game) {
+    let seen = countrySeenByChannel.get(game.channelId);
+    if (!seen) {
+        seen = new Set();
+        countrySeenByChannel.set(game.channelId, seen);
+    }
+
+    let choices = COUNTRY_QUESTIONS.filter(item =>
+        !game.usedCountries.has(item.country) && !seen.has(item.country)
+    );
+
+    // A channel only starts repeating after the entire flag pool has appeared.
+    if (!choices.length) {
+        seen.clear();
+        choices = COUNTRY_QUESTIONS.filter(item => !game.usedCountries.has(item.country));
+    }
+
+    // Extremely long games can outlast the whole pool; begin a fresh in-game cycle.
+    if (!choices.length) {
+        game.usedCountries.clear();
+        choices = [...COUNTRY_QUESTIONS];
+    }
+
+    const question = randomItem(choices);
+    seen.add(question.country);
+    game.usedCountries.add(question.country);
+    return question;
+}
 
 const COUNTRY_QUESTIONS = [
-    { country: "France", code: "fr", flag: "🇫🇷", aliases: ["france"], hints: ["The Eiffel Tower is here.", "Its capital is Paris.", "Famous for croissants and the Louvre."] },
-    { country: "Japan", code: "jp", flag: "🇯🇵", aliases: ["japan"], hints: ["This island nation is in East Asia.", "Its capital is Tokyo.", "Famous for anime, sushi, and Mount Fuji."] },
-    { country: "Brazil", code: "br", flag: "🇧🇷", aliases: ["brazil", "brasil"], hints: ["The largest country in South America.", "The Amazon rainforest covers much of it.", "Famous for carnival and football."] },
-    { country: "Canada", code: "ca", flag: "🇨🇦", aliases: ["canada"], hints: ["It has the world's longest coastline.", "Its capital is Ottawa.", "Its flag features a maple leaf."] },
-    { country: "Italy", code: "it", flag: "🇮🇹", aliases: ["italy"], hints: ["This country is shaped like a boot.", "Its capital is Rome.", "Famous for pizza, pasta, and the Colosseum."] },
-    { country: "Egypt", code: "eg", flag: "🇪🇬", aliases: ["egypt"], hints: ["The River Nile runs through it.", "Its capital is Cairo.", "Home of the Great Pyramids of Giza."] },
+    { country: "Afghanistan", code: "af", flag: "🇦🇫", aliases: ["afghanistan", "islamic republic of afghanistan"], hints: ["Its English name begins with the letter A.", "Its name contains 11 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AF."] },
+    { country: "Albania", code: "al", flag: "🇦🇱", aliases: ["albania", "republic of albania"], hints: ["Its English name begins with the letter A.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AL."] },
+    { country: "Algeria", code: "dz", flag: "🇩🇿", aliases: ["algeria", "people's democratic republic of algeria"], hints: ["Its English name begins with the letter A.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is DZ."] },
+    { country: "American Samoa", code: "as", flag: "🇦🇸", aliases: ["american samoa"], hints: ["Its English name begins with the letter A.", "Its name contains 13 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AS."] },
+    { country: "Andorra", code: "ad", flag: "🇦🇩", aliases: ["andorra", "principality of andorra"], hints: ["Its English name begins with the letter A.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AD."] },
+    { country: "Angola", code: "ao", flag: "🇦🇴", aliases: ["angola", "republic of angola"], hints: ["Its English name begins with the letter A.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AO."] },
+    { country: "Anguilla", code: "ai", flag: "🇦🇮", aliases: ["anguilla"], hints: ["Its English name begins with the letter A.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AI."] },
+    { country: "Antarctica", code: "aq", flag: "🇦🇶", aliases: ["antarctica"], hints: ["Its English name begins with the letter A.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AQ."] },
+    { country: "Antigua and Barbuda", code: "ag", flag: "🇦🇬", aliases: ["antigua and barbuda"], hints: ["Its English name begins with the letter A.", "Its name contains 17 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AG."] },
+    { country: "Argentina", code: "ar", flag: "🇦🇷", aliases: ["argentina"], hints: ["This country lies in southern South America.", "Its capital is Buenos Aires.", "Famous for tango and Lionel Messi."] },
+    { country: "Armenia", code: "am", flag: "🇦🇲", aliases: ["armenia", "republic of armenia"], hints: ["Its English name begins with the letter A.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AM."] },
+    { country: "Aruba", code: "aw", flag: "🇦🇼", aliases: ["aruba"], hints: ["Its English name begins with the letter A.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AW."] },
     { country: "Australia", code: "au", flag: "🇦🇺", aliases: ["australia"], hints: ["It is both a country and a continent.", "Its capital is Canberra.", "Known for kangaroos and the Great Barrier Reef."] },
+    { country: "Austria", code: "at", flag: "🇦🇹", aliases: ["austria", "republic of austria"], hints: ["Its English name begins with the letter A.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AT."] },
+    { country: "Azerbaijan", code: "az", flag: "🇦🇿", aliases: ["azerbaijan", "republic of azerbaijan"], hints: ["Its English name begins with the letter A.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AZ."] },
+    { country: "Bahamas", code: "bs", flag: "🇧🇸", aliases: ["bahamas", "commonwealth of the bahamas"], hints: ["Its English name begins with the letter B.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BS."] },
+    { country: "Bahrain", code: "bh", flag: "🇧🇭", aliases: ["bahrain", "kingdom of bahrain"], hints: ["Its English name begins with the letter B.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BH."] },
+    { country: "Bangladesh", code: "bd", flag: "🇧🇩", aliases: ["bangladesh"], hints: ["This densely populated country lies on the Bay of Bengal.", "Its capital is Dhaka.", "Most of it sits in the Ganges-Brahmaputra delta."] },
+    { country: "Barbados", code: "bb", flag: "🇧🇧", aliases: ["barbados"], hints: ["Its English name begins with the letter B.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BB."] },
+    { country: "Belarus", code: "by", flag: "🇧🇾", aliases: ["belarus", "republic of belarus"], hints: ["Its English name begins with the letter B.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BY."] },
+    { country: "Belgium", code: "be", flag: "🇧🇪", aliases: ["belgium", "kingdom of belgium"], hints: ["Its English name begins with the letter B.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BE."] },
+    { country: "Belize", code: "bz", flag: "🇧🇿", aliases: ["belize"], hints: ["Its English name begins with the letter B.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BZ."] },
+    { country: "Benin", code: "bj", flag: "🇧🇯", aliases: ["benin", "republic of benin"], hints: ["Its English name begins with the letter B.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BJ."] },
+    { country: "Bermuda", code: "bm", flag: "🇧🇲", aliases: ["bermuda"], hints: ["Its English name begins with the letter B.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BM."] },
+    { country: "Bhutan", code: "bt", flag: "🇧🇹", aliases: ["bhutan", "kingdom of bhutan"], hints: ["Its English name begins with the letter B.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BT."] },
+    { country: "Bolivia", code: "bo", flag: "🇧🇴", aliases: ["bolivia", "plurinational state of bolivia"], hints: ["Its English name begins with the letter B.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BO."] },
+    { country: "Bonaire, Sint Eustatius and Saba", code: "bq", flag: "🇧🇶", aliases: ["bonaire, sint eustatius and saba"], hints: ["Its English name begins with the letter B.", "Its name contains 27 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BQ."] },
+    { country: "Bosnia and Herzegovina", code: "ba", flag: "🇧🇦", aliases: ["bosnia and herzegovina", "republic of bosnia and herzegovina"], hints: ["Its English name begins with the letter B.", "Its name contains 20 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BA."] },
+    { country: "Botswana", code: "bw", flag: "🇧🇼", aliases: ["botswana", "republic of botswana"], hints: ["Its English name begins with the letter B.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BW."] },
+    { country: "Bouvet Island", code: "bv", flag: "🇧🇻", aliases: ["bouvet island"], hints: ["Its English name begins with the letter B.", "Its name contains 12 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BV."] },
+    { country: "Brazil", code: "br", flag: "🇧🇷", aliases: ["brazil", "brasil"], hints: ["The largest country in South America.", "The Amazon rainforest covers much of it.", "Famous for carnival and football."] },
+    { country: "British Indian Ocean Territory", code: "io", flag: "🇮🇴", aliases: ["british indian ocean territory"], hints: ["Its English name begins with the letter B.", "Its name contains 27 letters, ignoring spaces and punctuation.", "Its international two-letter country code is IO."] },
+    { country: "Brunei", code: "bn", flag: "🇧🇳", aliases: ["brunei", "brunei darussalam"], hints: ["Its English name begins with the letter B.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BN."] },
+    { country: "Bulgaria", code: "bg", flag: "🇧🇬", aliases: ["bulgaria", "republic of bulgaria"], hints: ["Its English name begins with the letter B.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BG."] },
+    { country: "Burkina Faso", code: "bf", flag: "🇧🇫", aliases: ["burkina faso"], hints: ["Its English name begins with the letter B.", "Its name contains 11 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BF."] },
+    { country: "Burundi", code: "bi", flag: "🇧🇮", aliases: ["burundi", "republic of burundi"], hints: ["Its English name begins with the letter B.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BI."] },
+    { country: "Cabo Verde", code: "cv", flag: "🇨🇻", aliases: ["cabo verde", "republic of cabo verde", "cape verde"], hints: ["Its English name begins with the letter C.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CV."] },
+    { country: "Cambodia", code: "kh", flag: "🇰🇭", aliases: ["cambodia", "kingdom of cambodia"], hints: ["Its English name begins with the letter C.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KH."] },
+    { country: "Cameroon", code: "cm", flag: "🇨🇲", aliases: ["cameroon", "republic of cameroon"], hints: ["Its English name begins with the letter C.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CM."] },
+    { country: "Canada", code: "ca", flag: "🇨🇦", aliases: ["canada"], hints: ["It has the world's longest coastline.", "Its capital is Ottawa.", "Its flag features a maple leaf."] },
+    { country: "Cayman Islands", code: "ky", flag: "🇰🇾", aliases: ["cayman islands"], hints: ["Its English name begins with the letter C.", "Its name contains 13 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KY."] },
+    { country: "Central African Republic", code: "cf", flag: "🇨🇫", aliases: ["central african republic"], hints: ["Its English name begins with the letter C.", "Its name contains 22 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CF."] },
+    { country: "Chad", code: "td", flag: "🇹🇩", aliases: ["chad", "republic of chad"], hints: ["Its English name begins with the letter C.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TD."] },
+    { country: "Chile", code: "cl", flag: "🇨🇱", aliases: ["chile", "republic of chile"], hints: ["Its English name begins with the letter C.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CL."] },
+    { country: "China", code: "cn", flag: "🇨🇳", aliases: ["china", "people's republic of china", "peoples republic of china", "prc"], hints: ["This country is in East Asia.", "Its capital is Beijing.", "The Great Wall runs across its north."] },
+    { country: "Christmas Island", code: "cx", flag: "🇨🇽", aliases: ["christmas island"], hints: ["Its English name begins with the letter C.", "Its name contains 15 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CX."] },
+    { country: "Cocos (Keeling) Islands", code: "cc", flag: "🇨🇨", aliases: ["cocos (keeling) islands"], hints: ["Its English name begins with the letter C.", "Its name contains 19 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CC."] },
+    { country: "Colombia", code: "co", flag: "🇨🇴", aliases: ["colombia", "republic of colombia"], hints: ["Its English name begins with the letter C.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CO."] },
+    { country: "Comoros", code: "km", flag: "🇰🇲", aliases: ["comoros", "union of the comoros"], hints: ["Its English name begins with the letter C.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KM."] },
+    { country: "Cook Islands", code: "ck", flag: "🇨🇰", aliases: ["cook islands"], hints: ["Its English name begins with the letter C.", "Its name contains 11 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CK."] },
+    { country: "Costa Rica", code: "cr", flag: "🇨🇷", aliases: ["costa rica", "republic of costa rica"], hints: ["Its English name begins with the letter C.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CR."] },
+    { country: "Croatia", code: "hr", flag: "🇭🇷", aliases: ["croatia", "republic of croatia"], hints: ["Its English name begins with the letter C.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is HR."] },
+    { country: "Cuba", code: "cu", flag: "🇨🇺", aliases: ["cuba", "republic of cuba"], hints: ["Its English name begins with the letter C.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CU."] },
+    { country: "Curaçao", code: "cw", flag: "🇨🇼", aliases: ["curaçao"], hints: ["Its English name begins with the letter C.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CW."] },
+    { country: "Cyprus", code: "cy", flag: "🇨🇾", aliases: ["cyprus", "republic of cyprus"], hints: ["Its English name begins with the letter C.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CY."] },
+    { country: "Czechia", code: "cz", flag: "🇨🇿", aliases: ["czechia", "czech republic"], hints: ["Its English name begins with the letter C.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CZ."] },
+    { country: "Democratic Republic of the Congo", code: "cd", flag: "🇨🇩", aliases: ["democratic republic of the congo", "dr congo", "drc", "congo kinshasa"], hints: ["Its English name begins with the letter D.", "Its name contains 28 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CD."] },
+    { country: "Denmark", code: "dk", flag: "🇩🇰", aliases: ["denmark", "kingdom of denmark"], hints: ["Its English name begins with the letter D.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is DK."] },
+    { country: "Djibouti", code: "dj", flag: "🇩🇯", aliases: ["djibouti", "republic of djibouti"], hints: ["Its English name begins with the letter D.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is DJ."] },
+    { country: "Dominica", code: "dm", flag: "🇩🇲", aliases: ["dominica", "commonwealth of dominica"], hints: ["Its English name begins with the letter D.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is DM."] },
+    { country: "Dominican Republic", code: "do", flag: "🇩🇴", aliases: ["dominican republic"], hints: ["Its English name begins with the letter D.", "Its name contains 17 letters, ignoring spaces and punctuation.", "Its international two-letter country code is DO."] },
+    { country: "Ecuador", code: "ec", flag: "🇪🇨", aliases: ["ecuador", "republic of ecuador"], hints: ["Its English name begins with the letter E.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is EC."] },
+    { country: "Egypt", code: "eg", flag: "🇪🇬", aliases: ["egypt"], hints: ["The River Nile runs through it.", "Its capital is Cairo.", "Home of the Great Pyramids of Giza."] },
+    { country: "El Salvador", code: "sv", flag: "🇸🇻", aliases: ["el salvador", "republic of el salvador"], hints: ["Its English name begins with the letter E.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SV."] },
+    { country: "Equatorial Guinea", code: "gq", flag: "🇬🇶", aliases: ["equatorial guinea", "republic of equatorial guinea"], hints: ["Its English name begins with the letter E.", "Its name contains 16 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GQ."] },
+    { country: "Eritrea", code: "er", flag: "🇪🇷", aliases: ["eritrea", "the state of eritrea"], hints: ["Its English name begins with the letter E.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is ER."] },
+    { country: "Estonia", code: "ee", flag: "🇪🇪", aliases: ["estonia", "republic of estonia"], hints: ["Its English name begins with the letter E.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is EE."] },
+    { country: "Eswatini", code: "sz", flag: "🇸🇿", aliases: ["eswatini", "kingdom of eswatini", "swaziland"], hints: ["Its English name begins with the letter E.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SZ."] },
+    { country: "Ethiopia", code: "et", flag: "🇪🇹", aliases: ["ethiopia", "federal democratic republic of ethiopia"], hints: ["Its English name begins with the letter E.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is ET."] },
+    { country: "Falkland Islands (Malvinas)", code: "fk", flag: "🇫🇰", aliases: ["falkland islands (malvinas)"], hints: ["Its English name begins with the letter F.", "Its name contains 23 letters, ignoring spaces and punctuation.", "Its international two-letter country code is FK."] },
+    { country: "Faroe Islands", code: "fo", flag: "🇫🇴", aliases: ["faroe islands"], hints: ["Its English name begins with the letter F.", "Its name contains 12 letters, ignoring spaces and punctuation.", "Its international two-letter country code is FO."] },
+    { country: "Fiji", code: "fj", flag: "🇫🇯", aliases: ["fiji", "republic of fiji"], hints: ["Its English name begins with the letter F.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is FJ."] },
+    { country: "Finland", code: "fi", flag: "🇫🇮", aliases: ["finland"], hints: ["It is known as the land of a thousand lakes.", "Its capital is Helsinki.", "Saunas are a major part of its culture."] },
+    { country: "France", code: "fr", flag: "🇫🇷", aliases: ["france"], hints: ["The Eiffel Tower is here.", "Its capital is Paris.", "Famous for croissants and the Louvre."] },
+    { country: "French Guiana", code: "gf", flag: "🇬🇫", aliases: ["french guiana"], hints: ["Its English name begins with the letter F.", "Its name contains 12 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GF."] },
+    { country: "French Polynesia", code: "pf", flag: "🇵🇫", aliases: ["french polynesia"], hints: ["Its English name begins with the letter F.", "Its name contains 15 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PF."] },
+    { country: "French Southern Territories", code: "tf", flag: "🇹🇫", aliases: ["french southern territories"], hints: ["Its English name begins with the letter F.", "Its name contains 25 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TF."] },
+    { country: "Gabon", code: "ga", flag: "🇬🇦", aliases: ["gabon", "gabonese republic"], hints: ["Its English name begins with the letter G.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GA."] },
+    { country: "Gambia", code: "gm", flag: "🇬🇲", aliases: ["gambia", "republic of the gambia"], hints: ["Its English name begins with the letter G.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GM."] },
+    { country: "Georgia", code: "ge", flag: "🇬🇪", aliases: ["georgia"], hints: ["Its English name begins with the letter G.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GE."] },
+    { country: "Germany", code: "de", flag: "🇩🇪", aliases: ["germany"], hints: ["This country is in central Europe.", "Its capital is Berlin.", "Known for Oktoberfest and the Autobahn."] },
+    { country: "Ghana", code: "gh", flag: "🇬🇭", aliases: ["ghana", "republic of ghana"], hints: ["Its English name begins with the letter G.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GH."] },
+    { country: "Gibraltar", code: "gi", flag: "🇬🇮", aliases: ["gibraltar"], hints: ["Its English name begins with the letter G.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GI."] },
+    { country: "Greece", code: "gr", flag: "🇬🇷", aliases: ["greece"], hints: ["Often called the birthplace of democracy.", "Its capital is Athens.", "The Acropolis is here."] },
+    { country: "Greenland", code: "gl", flag: "🇬🇱", aliases: ["greenland"], hints: ["Its English name begins with the letter G.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GL."] },
+    { country: "Grenada", code: "gd", flag: "🇬🇩", aliases: ["grenada"], hints: ["Its English name begins with the letter G.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GD."] },
+    { country: "Guadeloupe", code: "gp", flag: "🇬🇵", aliases: ["guadeloupe"], hints: ["Its English name begins with the letter G.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GP."] },
+    { country: "Guam", code: "gu", flag: "🇬🇺", aliases: ["guam"], hints: ["Its English name begins with the letter G.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GU."] },
+    { country: "Guatemala", code: "gt", flag: "🇬🇹", aliases: ["guatemala", "republic of guatemala"], hints: ["Its English name begins with the letter G.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GT."] },
+    { country: "Guernsey", code: "gg", flag: "🇬🇬", aliases: ["guernsey"], hints: ["Its English name begins with the letter G.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GG."] },
+    { country: "Guinea", code: "gn", flag: "🇬🇳", aliases: ["guinea", "republic of guinea"], hints: ["Its English name begins with the letter G.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GN."] },
+    { country: "Guinea-Bissau", code: "gw", flag: "🇬🇼", aliases: ["guinea-bissau", "republic of guinea-bissau"], hints: ["Its English name begins with the letter G.", "Its name contains 12 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GW."] },
+    { country: "Guyana", code: "gy", flag: "🇬🇾", aliases: ["guyana", "republic of guyana"], hints: ["Its English name begins with the letter G.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GY."] },
+    { country: "Haiti", code: "ht", flag: "🇭🇹", aliases: ["haiti", "republic of haiti"], hints: ["Its English name begins with the letter H.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is HT."] },
+    { country: "Heard Island and McDonald Islands", code: "hm", flag: "🇭🇲", aliases: ["heard island and mcdonald islands"], hints: ["Its English name begins with the letter H.", "Its name contains 29 letters, ignoring spaces and punctuation.", "Its international two-letter country code is HM."] },
+    { country: "Honduras", code: "hn", flag: "🇭🇳", aliases: ["honduras", "republic of honduras"], hints: ["Its English name begins with the letter H.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is HN."] },
+    { country: "Hong Kong", code: "hk", flag: "🇭🇰", aliases: ["hong kong", "hong kong special administrative region of china"], hints: ["Its English name begins with the letter H.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is HK."] },
+    { country: "Hungary", code: "hu", flag: "🇭🇺", aliases: ["hungary"], hints: ["Its English name begins with the letter H.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is HU."] },
+    { country: "Iceland", code: "is", flag: "🇮🇸", aliases: ["iceland"], hints: ["This Nordic island sits in the North Atlantic.", "Its capital is Reykjavik.", "Known for volcanoes, glaciers, and geysers."] },
     { country: "India", code: "in", flag: "🇮🇳", aliases: ["india"], hints: ["It is the world's most populous country.", "Its capital is New Delhi.", "The Taj Mahal is here."] },
+    { country: "Indonesia", code: "id", flag: "🇮🇩", aliases: ["indonesia"], hints: ["This Southeast Asian nation contains thousands of islands.", "Jakarta is its largest city.", "Bali is one of its most famous islands."] },
+    { country: "Iran", code: "ir", flag: "🇮🇷", aliases: ["iran", "islamic republic of iran"], hints: ["Its English name begins with the letter I.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is IR."] },
+    { country: "Iraq", code: "iq", flag: "🇮🇶", aliases: ["iraq", "republic of iraq"], hints: ["Its English name begins with the letter I.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is IQ."] },
+    { country: "Ireland", code: "ie", flag: "🇮🇪", aliases: ["ireland", "republic of ireland"], hints: ["This island country lies west of Great Britain.", "Its capital is Dublin.", "Its national symbol is the harp."] },
+    { country: "Isle of Man", code: "im", flag: "🇮🇲", aliases: ["isle of man"], hints: ["Its English name begins with the letter I.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is IM."] },
+    { country: "Israel", code: "il", flag: "🇮🇱", aliases: ["israel", "state of israel"], hints: ["Its English name begins with the letter I.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is IL."] },
+    { country: "Italy", code: "it", flag: "🇮🇹", aliases: ["italy"], hints: ["This country is shaped like a boot.", "Its capital is Rome.", "Famous for pizza, pasta, and the Colosseum."] },
+    { country: "Ivory Coast", code: "ci", flag: "🇨🇮", aliases: ["ivory coast", "republic of côte d'ivoire", "cote d ivoire", "côte d'ivoire"], hints: ["Its English name begins with the letter I.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CI."] },
+    { country: "Jamaica", code: "jm", flag: "🇯🇲", aliases: ["jamaica"], hints: ["This Caribbean island nation lies south of Cuba.", "Its capital is Kingston.", "Reggae and Bob Marley are closely associated with it."] },
+    { country: "Japan", code: "jp", flag: "🇯🇵", aliases: ["japan"], hints: ["This island nation is in East Asia.", "Its capital is Tokyo.", "Famous for anime, sushi, and Mount Fuji."] },
+    { country: "Jersey", code: "je", flag: "🇯🇪", aliases: ["jersey"], hints: ["Its English name begins with the letter J.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is JE."] },
+    { country: "Jordan", code: "jo", flag: "🇯🇴", aliases: ["jordan", "hashemite kingdom of jordan"], hints: ["Its English name begins with the letter J.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is JO."] },
+    { country: "Kazakhstan", code: "kz", flag: "🇰🇿", aliases: ["kazakhstan", "republic of kazakhstan"], hints: ["Its English name begins with the letter K.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KZ."] },
+    { country: "Kenya", code: "ke", flag: "🇰🇪", aliases: ["kenya"], hints: ["This East African country sits on the equator.", "Its capital is Nairobi.", "Known for safaris and elite distance runners."] },
+    { country: "Kiribati", code: "ki", flag: "🇰🇮", aliases: ["kiribati", "republic of kiribati"], hints: ["Its English name begins with the letter K.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KI."] },
+    { country: "Kosovo", code: "xk", flag: "🇽🇰", aliases: ["kosovo", "republic of kosovo"], hints: ["This country is in the Balkans.", "Its capital and largest city is Pristina.", "Its flag shows a map and six stars."] },
+    { country: "Kuwait", code: "kw", flag: "🇰🇼", aliases: ["kuwait", "state of kuwait"], hints: ["Its English name begins with the letter K.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KW."] },
+    { country: "Kyrgyzstan", code: "kg", flag: "🇰🇬", aliases: ["kyrgyzstan", "kyrgyz republic"], hints: ["Its English name begins with the letter K.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KG."] },
+    { country: "Laos", code: "la", flag: "🇱🇦", aliases: ["laos", "lao"], hints: ["Its English name begins with the letter L.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LA."] },
+    { country: "Latvia", code: "lv", flag: "🇱🇻", aliases: ["latvia", "republic of latvia"], hints: ["Its English name begins with the letter L.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LV."] },
+    { country: "Lebanon", code: "lb", flag: "🇱🇧", aliases: ["lebanon", "lebanese republic"], hints: ["Its English name begins with the letter L.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LB."] },
+    { country: "Lesotho", code: "ls", flag: "🇱🇸", aliases: ["lesotho", "kingdom of lesotho"], hints: ["Its English name begins with the letter L.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LS."] },
+    { country: "Liberia", code: "lr", flag: "🇱🇷", aliases: ["liberia", "republic of liberia"], hints: ["Its English name begins with the letter L.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LR."] },
+    { country: "Libya", code: "ly", flag: "🇱🇾", aliases: ["libya"], hints: ["Its English name begins with the letter L.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LY."] },
+    { country: "Liechtenstein", code: "li", flag: "🇱🇮", aliases: ["liechtenstein", "principality of liechtenstein"], hints: ["Its English name begins with the letter L.", "Its name contains 13 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LI."] },
+    { country: "Lithuania", code: "lt", flag: "🇱🇹", aliases: ["lithuania", "republic of lithuania"], hints: ["Its English name begins with the letter L.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LT."] },
+    { country: "Luxembourg", code: "lu", flag: "🇱🇺", aliases: ["luxembourg", "grand duchy of luxembourg"], hints: ["Its English name begins with the letter L.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LU."] },
+    { country: "Macao", code: "mo", flag: "🇲🇴", aliases: ["macao", "macao special administrative region of china"], hints: ["Its English name begins with the letter M.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MO."] },
+    { country: "Madagascar", code: "mg", flag: "🇲🇬", aliases: ["madagascar", "republic of madagascar"], hints: ["Its English name begins with the letter M.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MG."] },
+    { country: "Malawi", code: "mw", flag: "🇲🇼", aliases: ["malawi", "republic of malawi"], hints: ["Its English name begins with the letter M.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MW."] },
+    { country: "Malaysia", code: "my", flag: "🇲🇾", aliases: ["malaysia"], hints: ["Its English name begins with the letter M.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MY."] },
+    { country: "Maldives", code: "mv", flag: "🇲🇻", aliases: ["maldives", "republic of maldives"], hints: ["Its English name begins with the letter M.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MV."] },
+    { country: "Mali", code: "ml", flag: "🇲🇱", aliases: ["mali", "republic of mali"], hints: ["Its English name begins with the letter M.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is ML."] },
+    { country: "Malta", code: "mt", flag: "🇲🇹", aliases: ["malta", "republic of malta"], hints: ["Its English name begins with the letter M.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MT."] },
+    { country: "Marshall Islands", code: "mh", flag: "🇲🇭", aliases: ["marshall islands", "republic of the marshall islands"], hints: ["Its English name begins with the letter M.", "Its name contains 15 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MH."] },
+    { country: "Martinique", code: "mq", flag: "🇲🇶", aliases: ["martinique"], hints: ["Its English name begins with the letter M.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MQ."] },
+    { country: "Mauritania", code: "mr", flag: "🇲🇷", aliases: ["mauritania", "islamic republic of mauritania"], hints: ["Its English name begins with the letter M.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MR."] },
+    { country: "Mauritius", code: "mu", flag: "🇲🇺", aliases: ["mauritius", "republic of mauritius"], hints: ["Its English name begins with the letter M.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MU."] },
+    { country: "Mayotte", code: "yt", flag: "🇾🇹", aliases: ["mayotte"], hints: ["Its English name begins with the letter M.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is YT."] },
     { country: "Mexico", code: "mx", flag: "🇲🇽", aliases: ["mexico"], hints: ["It borders the United States to the north.", "Its capital is Mexico City.", "Famous for tacos and ancient Maya sites."] },
+    { country: "Micronesia", code: "fm", flag: "🇫🇲", aliases: ["micronesia", "federated states of micronesia"], hints: ["Its English name begins with the letter M.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is FM."] },
+    { country: "Moldova", code: "md", flag: "🇲🇩", aliases: ["moldova", "republic of moldova"], hints: ["Its English name begins with the letter M.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MD."] },
+    { country: "Monaco", code: "mc", flag: "🇲🇨", aliases: ["monaco", "principality of monaco"], hints: ["Its English name begins with the letter M.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MC."] },
+    { country: "Mongolia", code: "mn", flag: "🇲🇳", aliases: ["mongolia"], hints: ["Its English name begins with the letter M.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MN."] },
+    { country: "Montenegro", code: "me", flag: "🇲🇪", aliases: ["montenegro"], hints: ["Its English name begins with the letter M.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is ME."] },
+    { country: "Montserrat", code: "ms", flag: "🇲🇸", aliases: ["montserrat"], hints: ["Its English name begins with the letter M.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MS."] },
+    { country: "Morocco", code: "ma", flag: "🇲🇦", aliases: ["morocco"], hints: ["This North African country borders the Atlantic and Mediterranean.", "Its capital is Rabat.", "Marrakesh and the Atlas Mountains are here."] },
+    { country: "Mozambique", code: "mz", flag: "🇲🇿", aliases: ["mozambique", "republic of mozambique"], hints: ["Its English name begins with the letter M.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MZ."] },
+    { country: "Myanmar", code: "mm", flag: "🇲🇲", aliases: ["myanmar", "republic of myanmar", "burma"], hints: ["Its English name begins with the letter M.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MM."] },
+    { country: "Namibia", code: "na", flag: "🇳🇦", aliases: ["namibia", "republic of namibia"], hints: ["Its English name begins with the letter N.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NA."] },
+    { country: "Nauru", code: "nr", flag: "🇳🇷", aliases: ["nauru", "republic of nauru"], hints: ["Its English name begins with the letter N.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NR."] },
+    { country: "Nepal", code: "np", flag: "🇳🇵", aliases: ["nepal", "federal democratic republic of nepal"], hints: ["Its English name begins with the letter N.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NP."] },
+    { country: "Netherlands", code: "nl", flag: "🇳🇱", aliases: ["netherlands", "the netherlands", "holland"], hints: ["Much of this European country lies below sea level.", "Its capital is Amsterdam.", "Known for windmills, canals, and tulips."] },
+    { country: "New Caledonia", code: "nc", flag: "🇳🇨", aliases: ["new caledonia"], hints: ["Its English name begins with the letter N.", "Its name contains 12 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NC."] },
+    { country: "New Zealand", code: "nz", flag: "🇳🇿", aliases: ["new zealand", "nz", "aotearoa"], hints: ["This Pacific nation has North and South Islands.", "Its capital is Wellington.", "The Lord of the Rings films were shot here."] },
+    { country: "Nicaragua", code: "ni", flag: "🇳🇮", aliases: ["nicaragua", "republic of nicaragua"], hints: ["Its English name begins with the letter N.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NI."] },
+    { country: "Niger", code: "ne", flag: "🇳🇪", aliases: ["niger", "republic of the niger"], hints: ["Its English name begins with the letter N.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NE."] },
+    { country: "Nigeria", code: "ng", flag: "🇳🇬", aliases: ["nigeria"], hints: ["It is Africa's most populous country.", "Its capital is Abuja.", "Its film industry is called Nollywood."] },
+    { country: "Niue", code: "nu", flag: "🇳🇺", aliases: ["niue"], hints: ["Its English name begins with the letter N.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NU."] },
+    { country: "Norfolk Island", code: "nf", flag: "🇳🇫", aliases: ["norfolk island"], hints: ["Its English name begins with the letter N.", "Its name contains 13 letters, ignoring spaces and punctuation.", "Its international two-letter country code is NF."] },
+    { country: "North Korea", code: "kp", flag: "🇰🇵", aliases: ["north korea", "democratic people's republic of korea", "dprk", "democratic peoples republic of korea"], hints: ["Its English name begins with the letter N.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KP."] },
+    { country: "North Macedonia", code: "mk", flag: "🇲🇰", aliases: ["north macedonia", "republic of north macedonia", "macedonia"], hints: ["Its English name begins with the letter N.", "Its name contains 14 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MK."] },
+    { country: "Northern Mariana Islands", code: "mp", flag: "🇲🇵", aliases: ["northern mariana islands", "commonwealth of the northern mariana islands"], hints: ["Its English name begins with the letter N.", "Its name contains 22 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MP."] },
+    { country: "Norway", code: "no", flag: "🇳🇴", aliases: ["norway"], hints: ["This Nordic country is famous for fjords.", "Its capital is Oslo.", "Its coastline faces the North Atlantic and Arctic oceans."] },
+    { country: "Oman", code: "om", flag: "🇴🇲", aliases: ["oman", "sultanate of oman"], hints: ["Its English name begins with the letter O.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is OM."] },
+    { country: "Pakistan", code: "pk", flag: "🇵🇰", aliases: ["pakistan"], hints: ["This South Asian country borders India and Afghanistan.", "Its capital is Islamabad.", "K2 lies on its northern border region."] },
+    { country: "Palau", code: "pw", flag: "🇵🇼", aliases: ["palau", "republic of palau"], hints: ["Its English name begins with the letter P.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PW."] },
+    { country: "Palestine", code: "ps", flag: "🇵🇸", aliases: ["palestine", "the state of palestine", "state of palestine"], hints: ["Its English name begins with the letter P.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PS."] },
+    { country: "Panama", code: "pa", flag: "🇵🇦", aliases: ["panama", "republic of panama"], hints: ["Its English name begins with the letter P.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PA."] },
+    { country: "Papua New Guinea", code: "pg", flag: "🇵🇬", aliases: ["papua new guinea", "independent state of papua new guinea"], hints: ["Its English name begins with the letter P.", "Its name contains 14 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PG."] },
+    { country: "Paraguay", code: "py", flag: "🇵🇾", aliases: ["paraguay", "republic of paraguay"], hints: ["Its English name begins with the letter P.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PY."] },
+    { country: "Peru", code: "pe", flag: "🇵🇪", aliases: ["peru", "republic of peru"], hints: ["Its English name begins with the letter P.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PE."] },
+    { country: "Philippines", code: "ph", flag: "🇵🇭", aliases: ["philippines", "the philippines"], hints: ["This Southeast Asian archipelago has over 7,000 islands.", "Its capital is Manila.", "It was named after a Spanish king."] },
+    { country: "Pitcairn", code: "pn", flag: "🇵🇳", aliases: ["pitcairn"], hints: ["Its English name begins with the letter P.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PN."] },
+    { country: "Poland", code: "pl", flag: "🇵🇱", aliases: ["poland", "republic of poland"], hints: ["Its English name begins with the letter P.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PL."] },
+    { country: "Portugal", code: "pt", flag: "🇵🇹", aliases: ["portugal"], hints: ["It is the westernmost country of mainland Europe.", "Its capital is Lisbon.", "Famous for port wine and Cristiano Ronaldo."] },
+    { country: "Puerto Rico", code: "pr", flag: "🇵🇷", aliases: ["puerto rico"], hints: ["Its English name begins with the letter P.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PR."] },
+    { country: "Qatar", code: "qa", flag: "🇶🇦", aliases: ["qatar", "state of qatar"], hints: ["Its English name begins with the letter Q.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is QA."] },
+    { country: "Republic of the Congo", code: "cg", flag: "🇨🇬", aliases: ["republic of the congo", "congo brazzaville"], hints: ["Its English name begins with the letter R.", "Its name contains 18 letters, ignoring spaces and punctuation.", "Its international two-letter country code is CG."] },
+    { country: "Romania", code: "ro", flag: "🇷🇴", aliases: ["romania"], hints: ["Its English name begins with the letter R.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is RO."] },
+    { country: "Russia", code: "ru", flag: "🇷🇺", aliases: ["russia", "russian federation"], hints: ["Its English name begins with the letter R.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is RU."] },
+    { country: "Rwanda", code: "rw", flag: "🇷🇼", aliases: ["rwanda", "rwandese republic"], hints: ["Its English name begins with the letter R.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is RW."] },
+    { country: "Réunion", code: "re", flag: "🇷🇪", aliases: ["réunion"], hints: ["Its English name begins with the letter R.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is RE."] },
+    { country: "Saint Barthélemy", code: "bl", flag: "🇧🇱", aliases: ["saint barthélemy"], hints: ["Its English name begins with the letter S.", "Its name contains 15 letters, ignoring spaces and punctuation.", "Its international two-letter country code is BL."] },
+    { country: "Saint Helena, Ascension and Tristan da Cunha", code: "sh", flag: "🇸🇭", aliases: ["saint helena, ascension and tristan da cunha"], hints: ["Its English name begins with the letter S.", "Its name contains 37 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SH."] },
+    { country: "Saint Kitts and Nevis", code: "kn", flag: "🇰🇳", aliases: ["saint kitts and nevis"], hints: ["Its English name begins with the letter S.", "Its name contains 18 letters, ignoring spaces and punctuation.", "Its international two-letter country code is KN."] },
+    { country: "Saint Lucia", code: "lc", flag: "🇱🇨", aliases: ["saint lucia"], hints: ["Its English name begins with the letter S.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LC."] },
+    { country: "Saint Martin (French part)", code: "mf", flag: "🇲🇫", aliases: ["saint martin (french part)"], hints: ["Its English name begins with the letter S.", "Its name contains 21 letters, ignoring spaces and punctuation.", "Its international two-letter country code is MF."] },
+    { country: "Saint Pierre and Miquelon", code: "pm", flag: "🇵🇲", aliases: ["saint pierre and miquelon"], hints: ["Its English name begins with the letter S.", "Its name contains 22 letters, ignoring spaces and punctuation.", "Its international two-letter country code is PM."] },
+    { country: "Saint Vincent and the Grenadines", code: "vc", flag: "🇻🇨", aliases: ["saint vincent and the grenadines"], hints: ["Its English name begins with the letter S.", "Its name contains 28 letters, ignoring spaces and punctuation.", "Its international two-letter country code is VC."] },
+    { country: "Samoa", code: "ws", flag: "🇼🇸", aliases: ["samoa", "independent state of samoa"], hints: ["Its English name begins with the letter S.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is WS."] },
+    { country: "San Marino", code: "sm", flag: "🇸🇲", aliases: ["san marino", "republic of san marino"], hints: ["Its English name begins with the letter S.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SM."] },
+    { country: "Sao Tome and Principe", code: "st", flag: "🇸🇹", aliases: ["sao tome and principe", "democratic republic of sao tome and principe"], hints: ["Its English name begins with the letter S.", "Its name contains 18 letters, ignoring spaces and punctuation.", "Its international two-letter country code is ST."] },
+    { country: "Saudi Arabia", code: "sa", flag: "🇸🇦", aliases: ["saudi arabia", "saudi"], hints: ["It occupies most of the Arabian Peninsula.", "Its capital is Riyadh.", "Mecca and Medina are here."] },
+    { country: "Senegal", code: "sn", flag: "🇸🇳", aliases: ["senegal", "republic of senegal"], hints: ["Its English name begins with the letter S.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SN."] },
+    { country: "Serbia", code: "rs", flag: "🇷🇸", aliases: ["serbia", "republic of serbia"], hints: ["Its English name begins with the letter S.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is RS."] },
+    { country: "Seychelles", code: "sc", flag: "🇸🇨", aliases: ["seychelles", "republic of seychelles"], hints: ["Its English name begins with the letter S.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SC."] },
+    { country: "Sierra Leone", code: "sl", flag: "🇸🇱", aliases: ["sierra leone", "republic of sierra leone"], hints: ["Its English name begins with the letter S.", "Its name contains 11 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SL."] },
+    { country: "Singapore", code: "sg", flag: "🇸🇬", aliases: ["singapore", "republic of singapore"], hints: ["Its English name begins with the letter S.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SG."] },
+    { country: "Sint Maarten (Dutch part)", code: "sx", flag: "🇸🇽", aliases: ["sint maarten (dutch part)"], hints: ["Its English name begins with the letter S.", "Its name contains 20 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SX."] },
+    { country: "Slovakia", code: "sk", flag: "🇸🇰", aliases: ["slovakia", "slovak republic"], hints: ["Its English name begins with the letter S.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SK."] },
+    { country: "Slovenia", code: "si", flag: "🇸🇮", aliases: ["slovenia", "republic of slovenia"], hints: ["Its English name begins with the letter S.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SI."] },
+    { country: "Solomon Islands", code: "sb", flag: "🇸🇧", aliases: ["solomon islands"], hints: ["Its English name begins with the letter S.", "Its name contains 14 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SB."] },
+    { country: "Somalia", code: "so", flag: "🇸🇴", aliases: ["somalia", "federal republic of somalia"], hints: ["Its English name begins with the letter S.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SO."] },
+    { country: "South Africa", code: "za", flag: "🇿🇦", aliases: ["south africa"], hints: ["It has three capital cities.", "Nelson Mandela became its first Black president.", "Table Mountain overlooks Cape Town."] },
+    { country: "South Georgia and the South Sandwich Islands", code: "gs", flag: "🇬🇸", aliases: ["south georgia and the south sandwich islands"], hints: ["Its English name begins with the letter S.", "Its name contains 38 letters, ignoring spaces and punctuation.", "Its international two-letter country code is GS."] },
     { country: "South Korea", code: "kr", flag: "🇰🇷", aliases: ["south korea", "korea", "republic of korea"], hints: ["This East Asian country shares a peninsula with North Korea.", "Its capital is Seoul.", "Known worldwide for K-pop and K-dramas."] },
+    { country: "South Sudan", code: "ss", flag: "🇸🇸", aliases: ["south sudan", "republic of south sudan"], hints: ["Its English name begins with the letter S.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SS."] },
+    { country: "Spain", code: "es", flag: "🇪🇸", aliases: ["spain"], hints: ["It occupies most of the Iberian Peninsula.", "Its capital is Madrid.", "Famous for flamenco and paella."] },
+    { country: "Sri Lanka", code: "lk", flag: "🇱🇰", aliases: ["sri lanka", "democratic socialist republic of sri lanka"], hints: ["Its English name begins with the letter S.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is LK."] },
+    { country: "Sudan", code: "sd", flag: "🇸🇩", aliases: ["sudan", "republic of the sudan"], hints: ["Its English name begins with the letter S.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SD."] },
+    { country: "Suriname", code: "sr", flag: "🇸🇷", aliases: ["suriname", "republic of suriname"], hints: ["Its English name begins with the letter S.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SR."] },
+    { country: "Svalbard and Jan Mayen", code: "sj", flag: "🇸🇯", aliases: ["svalbard and jan mayen"], hints: ["Its English name begins with the letter S.", "Its name contains 19 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SJ."] },
+    { country: "Sweden", code: "se", flag: "🇸🇪", aliases: ["sweden"], hints: ["This Nordic country is part of Scandinavia.", "Its capital is Stockholm.", "IKEA and Spotify started here."] },
+    { country: "Switzerland", code: "ch", flag: "🇨🇭", aliases: ["switzerland"], hints: ["This Alpine country is famously neutral.", "Its capital is Bern.", "Known for watches, chocolate, and mountains."] },
+    { country: "Syria", code: "sy", flag: "🇸🇾", aliases: ["syria"], hints: ["Its English name begins with the letter S.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is SY."] },
+    { country: "Taiwan", code: "tw", flag: "🇹🇼", aliases: ["taiwan", "taiwan, province of china", "republic of china"], hints: ["Its English name begins with the letter T.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TW."] },
+    { country: "Tajikistan", code: "tj", flag: "🇹🇯", aliases: ["tajikistan", "republic of tajikistan"], hints: ["Its English name begins with the letter T.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TJ."] },
+    { country: "Tanzania", code: "tz", flag: "🇹🇿", aliases: ["tanzania", "united republic of tanzania"], hints: ["Its English name begins with the letter T.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TZ."] },
+    { country: "Thailand", code: "th", flag: "🇹🇭", aliases: ["thailand"], hints: ["This Southeast Asian country was formerly called Siam.", "Its capital is Bangkok.", "Known for temples, beaches, and pad thai."] },
+    { country: "Timor-Leste", code: "tl", flag: "🇹🇱", aliases: ["timor-leste", "democratic republic of timor-leste", "east timor"], hints: ["Its English name begins with the letter T.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TL."] },
+    { country: "Togo", code: "tg", flag: "🇹🇬", aliases: ["togo", "togolese republic"], hints: ["Its English name begins with the letter T.", "Its name contains 4 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TG."] },
+    { country: "Tokelau", code: "tk", flag: "🇹🇰", aliases: ["tokelau"], hints: ["Its English name begins with the letter T.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TK."] },
+    { country: "Tonga", code: "to", flag: "🇹🇴", aliases: ["tonga", "kingdom of tonga"], hints: ["Its English name begins with the letter T.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TO."] },
+    { country: "Trinidad and Tobago", code: "tt", flag: "🇹🇹", aliases: ["trinidad and tobago", "republic of trinidad and tobago"], hints: ["Its English name begins with the letter T.", "Its name contains 17 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TT."] },
+    { country: "Tunisia", code: "tn", flag: "🇹🇳", aliases: ["tunisia", "republic of tunisia"], hints: ["Its English name begins with the letter T.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TN."] },
+    { country: "Turkey", code: "tr", flag: "🇹🇷", aliases: ["turkey", "turkiye", "türkiye"], hints: ["It spans Europe and Asia.", "Its capital is Ankara.", "Istanbul is its largest city."] },
+    { country: "Turkmenistan", code: "tm", flag: "🇹🇲", aliases: ["turkmenistan"], hints: ["Its English name begins with the letter T.", "Its name contains 12 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TM."] },
+    { country: "Turks and Caicos Islands", code: "tc", flag: "🇹🇨", aliases: ["turks and caicos islands"], hints: ["Its English name begins with the letter T.", "Its name contains 21 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TC."] },
+    { country: "Tuvalu", code: "tv", flag: "🇹🇻", aliases: ["tuvalu"], hints: ["Its English name begins with the letter T.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is TV."] },
+    { country: "Uganda", code: "ug", flag: "🇺🇬", aliases: ["uganda", "republic of uganda"], hints: ["Its English name begins with the letter U.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is UG."] },
+    { country: "Ukraine", code: "ua", flag: "🇺🇦", aliases: ["ukraine"], hints: ["Its English name begins with the letter U.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is UA."] },
+    { country: "United Arab Emirates", code: "ae", flag: "🇦🇪", aliases: ["united arab emirates", "uae", "emirates"], hints: ["This Gulf country is a federation of seven emirates.", "Its capital is Abu Dhabi.", "Dubai and the Burj Khalifa are here."] },
     { country: "United Kingdom", code: "gb", flag: "🇬🇧", aliases: ["united kingdom", "uk", "great britain", "britain"], hints: ["It consists of four nations.", "Its capital is London.", "Big Ben and Buckingham Palace are here."] },
     { country: "United States", code: "us", flag: "🇺🇸", aliases: ["united states", "usa", "us", "america", "united states of america"], hints: ["It has 50 states.", "Its capital is Washington, D.C.", "Its flag is known as the Stars and Stripes."] },
-    { country: "Spain", code: "es", flag: "🇪🇸", aliases: ["spain"], hints: ["It occupies most of the Iberian Peninsula.", "Its capital is Madrid.", "Famous for flamenco and paella."] },
-    { country: "Germany", code: "de", flag: "🇩🇪", aliases: ["germany"], hints: ["This country is in central Europe.", "Its capital is Berlin.", "Known for Oktoberfest and the Autobahn."] },
-    { country: "Greece", code: "gr", flag: "🇬🇷", aliases: ["greece"], hints: ["Often called the birthplace of democracy.", "Its capital is Athens.", "The Acropolis is here."] },
-    { country: "China", code: "cn", flag: "🇨🇳", aliases: ["china", "people's republic of china", "peoples republic of china", "prc"], hints: ["This country is in East Asia.", "Its capital is Beijing.", "The Great Wall runs across its north."] },
-    { country: "Argentina", code: "ar", flag: "🇦🇷", aliases: ["argentina"], hints: ["This country lies in southern South America.", "Its capital is Buenos Aires.", "Famous for tango and Lionel Messi."] },
-    { country: "Turkey", code: "tr", flag: "🇹🇷", aliases: ["turkey", "turkiye", "türkiye"], hints: ["It spans Europe and Asia.", "Its capital is Ankara.", "Istanbul is its largest city."] },
-    { country: "Thailand", code: "th", flag: "🇹🇭", aliases: ["thailand"], hints: ["This Southeast Asian country was formerly called Siam.", "Its capital is Bangkok.", "Known for temples, beaches, and pad thai."] },
-    { country: "Saudi Arabia", code: "sa", flag: "🇸🇦", aliases: ["saudi arabia", "saudi"], hints: ["It occupies most of the Arabian Peninsula.", "Its capital is Riyadh.", "Mecca and Medina are here."] },
-    { country: "Nigeria", code: "ng", flag: "🇳🇬", aliases: ["nigeria"], hints: ["It is Africa's most populous country.", "Its capital is Abuja.", "Its film industry is called Nollywood."] },
-    { country: "South Africa", code: "za", flag: "🇿🇦", aliases: ["south africa"], hints: ["It has three capital cities.", "Nelson Mandela became its first Black president.", "Table Mountain overlooks Cape Town."] },
-    { country: "Kenya", code: "ke", flag: "🇰🇪", aliases: ["kenya"], hints: ["This East African country sits on the equator.", "Its capital is Nairobi.", "Known for safaris and elite distance runners."] },
-    { country: "Morocco", code: "ma", flag: "🇲🇦", aliases: ["morocco"], hints: ["This North African country borders the Atlantic and Mediterranean.", "Its capital is Rabat.", "Marrakesh and the Atlas Mountains are here."] },
-    { country: "Portugal", code: "pt", flag: "🇵🇹", aliases: ["portugal"], hints: ["It is the westernmost country of mainland Europe.", "Its capital is Lisbon.", "Famous for port wine and Cristiano Ronaldo."] },
-    { country: "Netherlands", code: "nl", flag: "🇳🇱", aliases: ["netherlands", "the netherlands", "holland"], hints: ["Much of this European country lies below sea level.", "Its capital is Amsterdam.", "Known for windmills, canals, and tulips."] },
-    { country: "Switzerland", code: "ch", flag: "🇨🇭", aliases: ["switzerland"], hints: ["This Alpine country is famously neutral.", "Its capital is Bern.", "Known for watches, chocolate, and mountains."] },
-    { country: "Sweden", code: "se", flag: "🇸🇪", aliases: ["sweden"], hints: ["This Nordic country is part of Scandinavia.", "Its capital is Stockholm.", "IKEA and Spotify started here."] },
-    { country: "Norway", code: "no", flag: "🇳🇴", aliases: ["norway"], hints: ["This Nordic country is famous for fjords.", "Its capital is Oslo.", "Its coastline faces the North Atlantic and Arctic oceans."] },
-    { country: "Finland", code: "fi", flag: "🇫🇮", aliases: ["finland"], hints: ["It is known as the land of a thousand lakes.", "Its capital is Helsinki.", "Saunas are a major part of its culture."] },
-    { country: "Ireland", code: "ie", flag: "🇮🇪", aliases: ["ireland", "republic of ireland"], hints: ["This island country lies west of Great Britain.", "Its capital is Dublin.", "Its national symbol is the harp."] },
-    { country: "New Zealand", code: "nz", flag: "🇳🇿", aliases: ["new zealand", "nz", "aotearoa"], hints: ["This Pacific nation has North and South Islands.", "Its capital is Wellington.", "The Lord of the Rings films were shot here."] },
-    { country: "Indonesia", code: "id", flag: "🇮🇩", aliases: ["indonesia"], hints: ["This Southeast Asian nation contains thousands of islands.", "Jakarta is its largest city.", "Bali is one of its most famous islands."] },
-    { country: "Philippines", code: "ph", flag: "🇵🇭", aliases: ["philippines", "the philippines"], hints: ["This Southeast Asian archipelago has over 7,000 islands.", "Its capital is Manila.", "It was named after a Spanish king."] },
+    { country: "United States Minor Outlying Islands", code: "um", flag: "🇺🇲", aliases: ["united states minor outlying islands"], hints: ["Its English name begins with the letter U.", "Its name contains 32 letters, ignoring spaces and punctuation.", "Its international two-letter country code is UM."] },
+    { country: "Uruguay", code: "uy", flag: "🇺🇾", aliases: ["uruguay", "eastern republic of uruguay"], hints: ["Its English name begins with the letter U.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is UY."] },
+    { country: "Uzbekistan", code: "uz", flag: "🇺🇿", aliases: ["uzbekistan", "republic of uzbekistan"], hints: ["Its English name begins with the letter U.", "Its name contains 10 letters, ignoring spaces and punctuation.", "Its international two-letter country code is UZ."] },
+    { country: "Vanuatu", code: "vu", flag: "🇻🇺", aliases: ["vanuatu", "republic of vanuatu"], hints: ["Its English name begins with the letter V.", "Its name contains 7 letters, ignoring spaces and punctuation.", "Its international two-letter country code is VU."] },
+    { country: "Vatican City", code: "va", flag: "🇻🇦", aliases: ["vatican city", "holy see"], hints: ["Its English name begins with the letter V.", "Its name contains 11 letters, ignoring spaces and punctuation.", "Its international two-letter country code is VA."] },
+    { country: "Venezuela", code: "ve", flag: "🇻🇪", aliases: ["venezuela", "bolivarian republic of venezuela"], hints: ["Its English name begins with the letter V.", "Its name contains 9 letters, ignoring spaces and punctuation.", "Its international two-letter country code is VE."] },
     { country: "Vietnam", code: "vn", flag: "🇻🇳", aliases: ["vietnam", "viet nam"], hints: ["This long, narrow country is in Southeast Asia.", "Its capital is Hanoi.", "Known for pho and Ha Long Bay."] },
-    { country: "Pakistan", code: "pk", flag: "🇵🇰", aliases: ["pakistan"], hints: ["This South Asian country borders India and Afghanistan.", "Its capital is Islamabad.", "K2 lies on its northern border region."] },
-    { country: "Bangladesh", code: "bd", flag: "🇧🇩", aliases: ["bangladesh"], hints: ["This densely populated country lies on the Bay of Bengal.", "Its capital is Dhaka.", "Most of it sits in the Ganges-Brahmaputra delta."] },
-    { country: "United Arab Emirates", code: "ae", flag: "🇦🇪", aliases: ["united arab emirates", "uae", "emirates"], hints: ["This Gulf country is a federation of seven emirates.", "Its capital is Abu Dhabi.", "Dubai and the Burj Khalifa are here."] },
-    { country: "Iceland", code: "is", flag: "🇮🇸", aliases: ["iceland"], hints: ["This Nordic island sits in the North Atlantic.", "Its capital is Reykjavik.", "Known for volcanoes, glaciers, and geysers."] },
-    { country: "Jamaica", code: "jm", flag: "🇯🇲", aliases: ["jamaica"], hints: ["This Caribbean island nation lies south of Cuba.", "Its capital is Kingston.", "Reggae and Bob Marley are closely associated with it."] }
+    { country: "Virgin Islands, British", code: "vg", flag: "🇻🇬", aliases: ["virgin islands, british", "british virgin islands"], hints: ["Its English name begins with the letter V.", "Its name contains 20 letters, ignoring spaces and punctuation.", "Its international two-letter country code is VG."] },
+    { country: "Virgin Islands, U.S.", code: "vi", flag: "🇻🇮", aliases: ["virgin islands, u.s.", "virgin islands of the united states"], hints: ["Its English name begins with the letter V.", "Its name contains 15 letters, ignoring spaces and punctuation.", "Its international two-letter country code is VI."] },
+    { country: "Wallis and Futuna", code: "wf", flag: "🇼🇫", aliases: ["wallis and futuna"], hints: ["Its English name begins with the letter W.", "Its name contains 15 letters, ignoring spaces and punctuation.", "Its international two-letter country code is WF."] },
+    { country: "Western Sahara", code: "eh", flag: "🇪🇭", aliases: ["western sahara"], hints: ["Its English name begins with the letter W.", "Its name contains 13 letters, ignoring spaces and punctuation.", "Its international two-letter country code is EH."] },
+    { country: "Yemen", code: "ye", flag: "🇾🇪", aliases: ["yemen", "republic of yemen"], hints: ["Its English name begins with the letter Y.", "Its name contains 5 letters, ignoring spaces and punctuation.", "Its international two-letter country code is YE."] },
+    { country: "Zambia", code: "zm", flag: "🇿🇲", aliases: ["zambia", "republic of zambia"], hints: ["Its English name begins with the letter Z.", "Its name contains 6 letters, ignoring spaces and punctuation.", "Its international two-letter country code is ZM."] },
+    { country: "Zimbabwe", code: "zw", flag: "🇿🇼", aliases: ["zimbabwe", "republic of zimbabwe"], hints: ["Its English name begins with the letter Z.", "Its name contains 8 letters, ignoring spaces and punctuation.", "Its international two-letter country code is ZW."] },
+    { country: "Åland Islands", code: "ax", flag: "🇦🇽", aliases: ["åland islands"], hints: ["Its English name begins with the letter Å.", "Its name contains 12 letters, ignoring spaces and punctuation.", "Its international two-letter country code is AX."] },
 ];
 
 function normaliseCountryGuess(text) {
@@ -1513,11 +1753,8 @@ async function startCountryRound(game) {
     game.round += 1;
     game.roundResolved = false;
     game.guessMessageIds = new Set();
-    let choices = COUNTRY_QUESTIONS.filter(item => !game.usedCountries.has(item.country));
-    if (!choices.length) { game.usedCountries.clear(); choices = COUNTRY_QUESTIONS; }
-    game.currentQuestion = randomItem(choices);
+    game.currentQuestion = chooseCountryQuestion(game);
     game.currentRoundType = "flag";
-    game.usedCountries.add(game.currentQuestion.country);
     game.roundEndsAt = Date.now() + game.roundSeconds * 1000;
     const payload = { embeds: [countryRoundEmbed(game, game.currentQuestion, 1)], components: [] };
     game.roundMessage = await game.channel.send(payload);
@@ -1739,6 +1976,146 @@ async function startRlglGame(game) {
 
 
 // ==================================================
+// BEEF WITH BELOVED
+// ==================================================
+
+const activeBeefs = new Map();
+const BEEF_SESSION_MS = 3 * 60 * 1000;
+const BEEF_MAX_EXCHANGES = 12;
+
+function beefKey(channelId, userId) {
+    return `${channelId}:${userId}`;
+}
+
+function cleanBeefText(text) {
+    return text
+        .replace(/<@!?\d+>/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 300);
+}
+
+function pickBeefReply(messageText, session) {
+    const text = cleanBeefText(messageText);
+    const lower = text.toLowerCase();
+    const name = session.displayName;
+    const level = Math.min(3, Math.floor(session.exchanges / 3));
+
+    if (/^(end beef|stop beef|peace|truce|i give up|you win)\b/i.test(lower)) {
+        return { ended: true, text: `🤝 Truce accepted, **${name}**. I was starting to feel bad for you anyway.` };
+    }
+
+    if (/\b(bot|robot|ai|computer|code|program)\b/i.test(lower)) {
+        const replies = [
+            `You keep calling me a bot like that changes the fact you're losing an argument to one.`,
+            `Correct, I'm code. And somehow I still assembled a better comeback than you did.`,
+            `I'm literally hosted on a server and you're still the one buffering right now.`,
+            `Imagine beefing with JavaScript and JavaScript starts winning.`
+        ];
+        return { ended: false, text: randomItem(replies) };
+    }
+
+    if (/\b(shut up|stfu|be quiet|stop talking)\b/i.test(lower)) {
+        return { ended: false, text: randomItem([
+            `You started `/beef` and now you're requesting silence? That's a refund request, not a comeback.`,
+            `No no, don't close the show now. You bought front-row tickets to this embarrassment.`,
+            `You invited me to argue and folded during the tutorial.`
+        ]) };
+    }
+
+    if (/\b(ugly|clapped|hideous)\b/i.test(lower)) {
+        return { ended: false, text: randomItem([
+            `I don't even have a face and you're still somehow losing the looks debate.`,
+            `My profile picture has more aura than that entire sentence.`,
+            `You're rating pixels because the argument section wasn't going well.`
+        ]) };
+    }
+
+    if (/\b(dumb|stupid|idiot|brain)\b/i.test(lower)) {
+        return { ended: false, text: randomItem([
+            `Calling me dumb with that sentence structure is extremely brave.`,
+            `Your comeback had a loading screen and still arrived unfinished.`,
+            `I searched your message for a point. The search returned zero results.`,
+            `That insult came straight from the default settings menu.`
+        ]) };
+    }
+
+    if (/\b(lol|lmao|lmfao|haha|😂|😭)\b/i.test(lower)) {
+        return { ended: false, text: randomItem([
+            `Adding “lmao” doesn't make the comeback land, it just adds canned laughter.`,
+            `You're laughing like the audience isn't concerned for you.`,
+            `Those emojis are doing unpaid overtime for that weak reply.`
+        ]) };
+    }
+
+    if (/\b(who asked|didn't ask|nobody asked)\b/i.test(lower)) {
+        return { ended: false, text: `You literally ran **/beef**. You asked, signed the paperwork, and opened the venue.` };
+    }
+
+    if (/\b(you lost|i win|winning|cooked you|cooked)\b/i.test(lower)) {
+        return { ended: false, text: randomItem([
+            `Declaring yourself the winner mid-argument is the verbal version of awarding yourself a trophy.`,
+            `You said “I win” because evidence was unavailable.`,
+            `The only thing cooked here is your confidence-to-material ratio.`
+        ]) };
+    }
+
+    const callbacks = [
+        `“${text || "..."}” — that's the comeback? I thought you were still typing.`,
+        `You had unlimited words available and chose those ones. Fascinating.`,
+        `That sounded much stronger in your head, didn't it?`,
+        `I've seen CAPTCHA boxes put up a better fight.`,
+        `Your argument has the structural integrity of wet tissue.`,
+        `You type like every sentence is a group project nobody attended.`,
+        `I'm trying to take you seriously, **${name}**, but you keep interrupting with material like that.`,
+        `That reply entered the chat, looked around, and forgot why it came.`,
+        `Your comeback needs a software update and possibly adult supervision.`,
+        `Respectfully, that was premium confidence with free-trial delivery.`
+    ];
+
+    const sharper = [
+        `We're ${session.exchanges + 1} replies in and your best strategy is still hoping I disconnect.`,
+        `At this point I'm not roasting you; I'm providing live commentary on the collapse.`,
+        `You keep swinging and somehow the air is winning.`,
+        `This beef has become a documentary about misplaced confidence.`,
+        `Your replies have plot twists, mostly because none of them connect to the previous sentence.`
+    ];
+
+    const finishers = [
+        `I'm going to give you one more reply before this becomes community service.`,
+        `Even my cooldown is trying to protect you now.`,
+        `The comeback department has marked your case as missing persons.`,
+        `You brought beef and somehow served plain water.`
+    ];
+
+    return {
+        ended: false,
+        text: randomItem(level >= 3 ? finishers : level >= 2 ? sharper : callbacks)
+    };
+}
+
+function startBeefSession(channelId, user, opening = "") {
+    const key = beefKey(channelId, user.id);
+    const session = {
+        userId: user.id,
+        displayName: user.globalName || user.username,
+        exchanges: 0,
+        startedAt: Date.now(),
+        expiresAt: Date.now() + BEEF_SESSION_MS,
+        lastMessageAt: 0
+    };
+    activeBeefs.set(key, session);
+    return session;
+}
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, session] of activeBeefs) {
+        if (session.expiresAt <= now) activeBeefs.delete(key);
+    }
+}, 60 * 1000);
+
+// ==================================================
 // SLASH COMMANDS
 // ==================================================
 
@@ -1746,6 +2123,17 @@ const commands = [
     new ContextMenuCommandBuilder()
         .setName("Clip this")
         .setType(ApplicationCommandType.Message),
+
+    new SlashCommandBuilder()
+        .setName("beef")
+        .setDescription("Start a realistic funny argument with Beloved")
+        .addStringOption(option =>
+            option
+                .setName("opening")
+                .setDescription("Your opening line to Beloved")
+                .setMaxLength(300)
+                .setRequired(false)
+        ),
 
     new SlashCommandBuilder()
         .setName("love")
@@ -2393,6 +2781,36 @@ client.on(Events.InteractionCreate, async interaction => {
         }
 
         const command = interaction.commandName;
+
+        if (command === "beef") {
+            if (!interaction.inGuild()) {
+                return interaction.reply({ content: "Beef mode only works inside a server.", ephemeral: true });
+            }
+
+            const opening = interaction.options.getString("opening") || "you really think you can argue with me?";
+            const key = beefKey(interaction.channelId, interaction.user.id);
+            const existing = activeBeefs.get(key);
+
+            if (existing && existing.expiresAt > Date.now()) {
+                return interaction.reply({
+                    content: "🥩 We're already beefing. Type your next comeback in this channel, or say **end beef**.",
+                    ephemeral: true
+                });
+            }
+
+            const session = startBeefSession(interaction.channelId, interaction.user, opening);
+            const first = pickBeefReply(opening, session);
+            session.exchanges = 1;
+
+            return interaction.reply({
+                content:
+                    `🥩 **BEEF MODE ACTIVATED** — <@${interaction.user.id}> vs **Beloved**\n` +
+                    `*You have 3 minutes. Say **end beef** whenever you've had enough.*\n\n` +
+                    `> ${cleanBeefText(opening)}\n\n` +
+                    `💖 **Beloved:** ${first.text}`,
+                allowedMentions: { users: [interaction.user.id] }
+            });
+        }
 
         if (command === "love") {
             const user = interaction.options.getUser("user");
@@ -3309,6 +3727,49 @@ client.on(Events.MessageCreate, async message => {
     }
 
     try {
+        const activeBeefKey = beefKey(message.channel.id, message.author.id);
+        const beef = activeBeefs.get(activeBeefKey);
+
+        if (beef) {
+            if (beef.expiresAt <= Date.now()) {
+                activeBeefs.delete(activeBeefKey);
+                await message.reply("🥩 Beef expired. Run **/beef** when you're ready for another round.");
+                return;
+            }
+
+            // Ignore Discord commands while beef mode is active.
+            if (!message.content.startsWith("/")) {
+                const now = Date.now();
+                if (now - beef.lastMessageAt < 900) {
+                    await message.react("⏳").catch(() => {});
+                    return;
+                }
+
+                beef.lastMessageAt = now;
+                const reply = pickBeefReply(message.content, beef);
+                beef.exchanges += 1;
+                beef.expiresAt = now + BEEF_SESSION_MS;
+
+                if (reply.ended) {
+                    activeBeefs.delete(activeBeefKey);
+                    await message.reply(reply.text);
+                    return;
+                }
+
+                if (beef.exchanges >= BEEF_MAX_EXCHANGES) {
+                    activeBeefs.delete(activeBeefKey);
+                    await message.reply(
+                        `${reply.text}\n\n🏁 **Beef over.** Twelve rounds completed. ` +
+                        `Beloved wins by emotional damage and server costs.`
+                    );
+                    return;
+                }
+
+                await message.reply(`${reply.text}\n\n-# Round ${beef.exchanges}/${BEEF_MAX_EXCHANGES} • say “end beef” to stop`);
+                return;
+            }
+        }
+
         const countryGameId = countryGameByChannel.get(message.channel.id);
         const countryGame = countryGameId ? activeCountryGames.get(countryGameId) : null;
         if (countryGame && countryGame.status === "round" && !countryGame.roundResolved) {
