@@ -1333,46 +1333,46 @@ const countryGameByChannel = new Map();
 const COUNTRY_JOIN_EMOJI = "🌍";
 
 const COUNTRY_QUESTIONS = [
-    { country: "France", flag: "🇫🇷", aliases: ["france"], hints: ["The Eiffel Tower is here.", "Its capital is Paris.", "Famous for croissants and the Louvre."] },
-    { country: "Japan", flag: "🇯🇵", aliases: ["japan"], hints: ["This island nation is in East Asia.", "Its capital is Tokyo.", "Famous for anime, sushi, and Mount Fuji."] },
-    { country: "Brazil", flag: "🇧🇷", aliases: ["brazil", "brasil"], hints: ["The largest country in South America.", "The Amazon rainforest covers much of it.", "Famous for carnival and football."] },
-    { country: "Canada", flag: "🇨🇦", aliases: ["canada"], hints: ["It has the world's longest coastline.", "Its capital is Ottawa.", "Its flag features a maple leaf."] },
-    { country: "Italy", flag: "🇮🇹", aliases: ["italy"], hints: ["This country is shaped like a boot.", "Its capital is Rome.", "Famous for pizza, pasta, and the Colosseum."] },
-    { country: "Egypt", flag: "🇪🇬", aliases: ["egypt"], hints: ["The River Nile runs through it.", "Its capital is Cairo.", "Home of the Great Pyramids of Giza."] },
-    { country: "Australia", flag: "🇦🇺", aliases: ["australia"], hints: ["It is both a country and a continent.", "Its capital is Canberra.", "Known for kangaroos and the Great Barrier Reef."] },
-    { country: "India", flag: "🇮🇳", aliases: ["india"], hints: ["It is the world's most populous country.", "Its capital is New Delhi.", "The Taj Mahal is here."] },
-    { country: "Mexico", flag: "🇲🇽", aliases: ["mexico"], hints: ["It borders the United States to the north.", "Its capital is Mexico City.", "Famous for tacos and ancient Maya sites."] },
-    { country: "South Korea", flag: "🇰🇷", aliases: ["south korea", "korea", "republic of korea"], hints: ["This East Asian country shares a peninsula with North Korea.", "Its capital is Seoul.", "Known worldwide for K-pop and K-dramas."] },
-    { country: "United Kingdom", flag: "🇬🇧", aliases: ["united kingdom", "uk", "great britain", "britain"], hints: ["It consists of four nations.", "Its capital is London.", "Big Ben and Buckingham Palace are here."] },
-    { country: "United States", flag: "🇺🇸", aliases: ["united states", "usa", "us", "america", "united states of america"], hints: ["It has 50 states.", "Its capital is Washington, D.C.", "Its flag is known as the Stars and Stripes."] },
-    { country: "Spain", flag: "🇪🇸", aliases: ["spain"], hints: ["It occupies most of the Iberian Peninsula.", "Its capital is Madrid.", "Famous for flamenco and paella."] },
-    { country: "Germany", flag: "🇩🇪", aliases: ["germany"], hints: ["This country is in central Europe.", "Its capital is Berlin.", "Known for Oktoberfest and the Autobahn."] },
-    { country: "Greece", flag: "🇬🇷", aliases: ["greece"], hints: ["Often called the birthplace of democracy.", "Its capital is Athens.", "The Acropolis is here."] },
-    { country: "China", flag: "🇨🇳", aliases: ["china", "people's republic of china", "peoples republic of china", "prc"], hints: ["This country is in East Asia.", "Its capital is Beijing.", "The Great Wall runs across its north."] },
-    { country: "Argentina", flag: "🇦🇷", aliases: ["argentina"], hints: ["This country lies in southern South America.", "Its capital is Buenos Aires.", "Famous for tango and Lionel Messi."] },
-    { country: "Turkey", flag: "🇹🇷", aliases: ["turkey", "turkiye", "türkiye"], hints: ["It spans Europe and Asia.", "Its capital is Ankara.", "Istanbul is its largest city."] },
-    { country: "Thailand", flag: "🇹🇭", aliases: ["thailand"], hints: ["This Southeast Asian country was formerly called Siam.", "Its capital is Bangkok.", "Known for temples, beaches, and pad thai."] },
-    { country: "Saudi Arabia", flag: "🇸🇦", aliases: ["saudi arabia", "saudi"], hints: ["It occupies most of the Arabian Peninsula.", "Its capital is Riyadh.", "Mecca and Medina are here."] },
-    { country: "Nigeria", flag: "🇳🇬", aliases: ["nigeria"], hints: ["It is Africa's most populous country.", "Its capital is Abuja.", "Its film industry is called Nollywood."] },
-    { country: "South Africa", flag: "🇿🇦", aliases: ["south africa"], hints: ["It has three capital cities.", "Nelson Mandela became its first Black president.", "Table Mountain overlooks Cape Town."] },
-    { country: "Kenya", flag: "🇰🇪", aliases: ["kenya"], hints: ["This East African country sits on the equator.", "Its capital is Nairobi.", "Known for safaris and elite distance runners."] },
-    { country: "Morocco", flag: "🇲🇦", aliases: ["morocco"], hints: ["This North African country borders the Atlantic and Mediterranean.", "Its capital is Rabat.", "Marrakesh and the Atlas Mountains are here."] },
-    { country: "Portugal", flag: "🇵🇹", aliases: ["portugal"], hints: ["It is the westernmost country of mainland Europe.", "Its capital is Lisbon.", "Famous for port wine and Cristiano Ronaldo."] },
-    { country: "Netherlands", flag: "🇳🇱", aliases: ["netherlands", "the netherlands", "holland"], hints: ["Much of this European country lies below sea level.", "Its capital is Amsterdam.", "Known for windmills, canals, and tulips."] },
-    { country: "Switzerland", flag: "🇨🇭", aliases: ["switzerland"], hints: ["This Alpine country is famously neutral.", "Its capital is Bern.", "Known for watches, chocolate, and mountains."] },
-    { country: "Sweden", flag: "🇸🇪", aliases: ["sweden"], hints: ["This Nordic country is part of Scandinavia.", "Its capital is Stockholm.", "IKEA and Spotify started here."] },
-    { country: "Norway", flag: "🇳🇴", aliases: ["norway"], hints: ["This Nordic country is famous for fjords.", "Its capital is Oslo.", "Its coastline faces the North Atlantic and Arctic oceans."] },
-    { country: "Finland", flag: "🇫🇮", aliases: ["finland"], hints: ["It is known as the land of a thousand lakes.", "Its capital is Helsinki.", "Saunas are a major part of its culture."] },
-    { country: "Ireland", flag: "🇮🇪", aliases: ["ireland", "republic of ireland"], hints: ["This island country lies west of Great Britain.", "Its capital is Dublin.", "Its national symbol is the harp."] },
-    { country: "New Zealand", flag: "🇳🇿", aliases: ["new zealand", "nz", "aotearoa"], hints: ["This Pacific nation has North and South Islands.", "Its capital is Wellington.", "The Lord of the Rings films were shot here."] },
-    { country: "Indonesia", flag: "🇮🇩", aliases: ["indonesia"], hints: ["This Southeast Asian nation contains thousands of islands.", "Jakarta is its largest city.", "Bali is one of its most famous islands."] },
-    { country: "Philippines", flag: "🇵🇭", aliases: ["philippines", "the philippines"], hints: ["This Southeast Asian archipelago has over 7,000 islands.", "Its capital is Manila.", "It was named after a Spanish king."] },
-    { country: "Vietnam", flag: "🇻🇳", aliases: ["vietnam", "viet nam"], hints: ["This long, narrow country is in Southeast Asia.", "Its capital is Hanoi.", "Known for pho and Ha Long Bay."] },
-    { country: "Pakistan", flag: "🇵🇰", aliases: ["pakistan"], hints: ["This South Asian country borders India and Afghanistan.", "Its capital is Islamabad.", "K2 lies on its northern border region."] },
-    { country: "Bangladesh", flag: "🇧🇩", aliases: ["bangladesh"], hints: ["This densely populated country lies on the Bay of Bengal.", "Its capital is Dhaka.", "Most of it sits in the Ganges-Brahmaputra delta."] },
-    { country: "United Arab Emirates", flag: "🇦🇪", aliases: ["united arab emirates", "uae", "emirates"], hints: ["This Gulf country is a federation of seven emirates.", "Its capital is Abu Dhabi.", "Dubai and the Burj Khalifa are here."] },
-    { country: "Iceland", flag: "🇮🇸", aliases: ["iceland"], hints: ["This Nordic island sits in the North Atlantic.", "Its capital is Reykjavik.", "Known for volcanoes, glaciers, and geysers."] },
-    { country: "Jamaica", flag: "🇯🇲", aliases: ["jamaica"], hints: ["This Caribbean island nation lies south of Cuba.", "Its capital is Kingston.", "Reggae and Bob Marley are closely associated with it."] }
+    { country: "France", code: "fr", flag: "🇫🇷", aliases: ["france"], hints: ["The Eiffel Tower is here.", "Its capital is Paris.", "Famous for croissants and the Louvre."] },
+    { country: "Japan", code: "jp", flag: "🇯🇵", aliases: ["japan"], hints: ["This island nation is in East Asia.", "Its capital is Tokyo.", "Famous for anime, sushi, and Mount Fuji."] },
+    { country: "Brazil", code: "br", flag: "🇧🇷", aliases: ["brazil", "brasil"], hints: ["The largest country in South America.", "The Amazon rainforest covers much of it.", "Famous for carnival and football."] },
+    { country: "Canada", code: "ca", flag: "🇨🇦", aliases: ["canada"], hints: ["It has the world's longest coastline.", "Its capital is Ottawa.", "Its flag features a maple leaf."] },
+    { country: "Italy", code: "it", flag: "🇮🇹", aliases: ["italy"], hints: ["This country is shaped like a boot.", "Its capital is Rome.", "Famous for pizza, pasta, and the Colosseum."] },
+    { country: "Egypt", code: "eg", flag: "🇪🇬", aliases: ["egypt"], hints: ["The River Nile runs through it.", "Its capital is Cairo.", "Home of the Great Pyramids of Giza."] },
+    { country: "Australia", code: "au", flag: "🇦🇺", aliases: ["australia"], hints: ["It is both a country and a continent.", "Its capital is Canberra.", "Known for kangaroos and the Great Barrier Reef."] },
+    { country: "India", code: "in", flag: "🇮🇳", aliases: ["india"], hints: ["It is the world's most populous country.", "Its capital is New Delhi.", "The Taj Mahal is here."] },
+    { country: "Mexico", code: "mx", flag: "🇲🇽", aliases: ["mexico"], hints: ["It borders the United States to the north.", "Its capital is Mexico City.", "Famous for tacos and ancient Maya sites."] },
+    { country: "South Korea", code: "kr", flag: "🇰🇷", aliases: ["south korea", "korea", "republic of korea"], hints: ["This East Asian country shares a peninsula with North Korea.", "Its capital is Seoul.", "Known worldwide for K-pop and K-dramas."] },
+    { country: "United Kingdom", code: "gb", flag: "🇬🇧", aliases: ["united kingdom", "uk", "great britain", "britain"], hints: ["It consists of four nations.", "Its capital is London.", "Big Ben and Buckingham Palace are here."] },
+    { country: "United States", code: "us", flag: "🇺🇸", aliases: ["united states", "usa", "us", "america", "united states of america"], hints: ["It has 50 states.", "Its capital is Washington, D.C.", "Its flag is known as the Stars and Stripes."] },
+    { country: "Spain", code: "es", flag: "🇪🇸", aliases: ["spain"], hints: ["It occupies most of the Iberian Peninsula.", "Its capital is Madrid.", "Famous for flamenco and paella."] },
+    { country: "Germany", code: "de", flag: "🇩🇪", aliases: ["germany"], hints: ["This country is in central Europe.", "Its capital is Berlin.", "Known for Oktoberfest and the Autobahn."] },
+    { country: "Greece", code: "gr", flag: "🇬🇷", aliases: ["greece"], hints: ["Often called the birthplace of democracy.", "Its capital is Athens.", "The Acropolis is here."] },
+    { country: "China", code: "cn", flag: "🇨🇳", aliases: ["china", "people's republic of china", "peoples republic of china", "prc"], hints: ["This country is in East Asia.", "Its capital is Beijing.", "The Great Wall runs across its north."] },
+    { country: "Argentina", code: "ar", flag: "🇦🇷", aliases: ["argentina"], hints: ["This country lies in southern South America.", "Its capital is Buenos Aires.", "Famous for tango and Lionel Messi."] },
+    { country: "Turkey", code: "tr", flag: "🇹🇷", aliases: ["turkey", "turkiye", "türkiye"], hints: ["It spans Europe and Asia.", "Its capital is Ankara.", "Istanbul is its largest city."] },
+    { country: "Thailand", code: "th", flag: "🇹🇭", aliases: ["thailand"], hints: ["This Southeast Asian country was formerly called Siam.", "Its capital is Bangkok.", "Known for temples, beaches, and pad thai."] },
+    { country: "Saudi Arabia", code: "sa", flag: "🇸🇦", aliases: ["saudi arabia", "saudi"], hints: ["It occupies most of the Arabian Peninsula.", "Its capital is Riyadh.", "Mecca and Medina are here."] },
+    { country: "Nigeria", code: "ng", flag: "🇳🇬", aliases: ["nigeria"], hints: ["It is Africa's most populous country.", "Its capital is Abuja.", "Its film industry is called Nollywood."] },
+    { country: "South Africa", code: "za", flag: "🇿🇦", aliases: ["south africa"], hints: ["It has three capital cities.", "Nelson Mandela became its first Black president.", "Table Mountain overlooks Cape Town."] },
+    { country: "Kenya", code: "ke", flag: "🇰🇪", aliases: ["kenya"], hints: ["This East African country sits on the equator.", "Its capital is Nairobi.", "Known for safaris and elite distance runners."] },
+    { country: "Morocco", code: "ma", flag: "🇲🇦", aliases: ["morocco"], hints: ["This North African country borders the Atlantic and Mediterranean.", "Its capital is Rabat.", "Marrakesh and the Atlas Mountains are here."] },
+    { country: "Portugal", code: "pt", flag: "🇵🇹", aliases: ["portugal"], hints: ["It is the westernmost country of mainland Europe.", "Its capital is Lisbon.", "Famous for port wine and Cristiano Ronaldo."] },
+    { country: "Netherlands", code: "nl", flag: "🇳🇱", aliases: ["netherlands", "the netherlands", "holland"], hints: ["Much of this European country lies below sea level.", "Its capital is Amsterdam.", "Known for windmills, canals, and tulips."] },
+    { country: "Switzerland", code: "ch", flag: "🇨🇭", aliases: ["switzerland"], hints: ["This Alpine country is famously neutral.", "Its capital is Bern.", "Known for watches, chocolate, and mountains."] },
+    { country: "Sweden", code: "se", flag: "🇸🇪", aliases: ["sweden"], hints: ["This Nordic country is part of Scandinavia.", "Its capital is Stockholm.", "IKEA and Spotify started here."] },
+    { country: "Norway", code: "no", flag: "🇳🇴", aliases: ["norway"], hints: ["This Nordic country is famous for fjords.", "Its capital is Oslo.", "Its coastline faces the North Atlantic and Arctic oceans."] },
+    { country: "Finland", code: "fi", flag: "🇫🇮", aliases: ["finland"], hints: ["It is known as the land of a thousand lakes.", "Its capital is Helsinki.", "Saunas are a major part of its culture."] },
+    { country: "Ireland", code: "ie", flag: "🇮🇪", aliases: ["ireland", "republic of ireland"], hints: ["This island country lies west of Great Britain.", "Its capital is Dublin.", "Its national symbol is the harp."] },
+    { country: "New Zealand", code: "nz", flag: "🇳🇿", aliases: ["new zealand", "nz", "aotearoa"], hints: ["This Pacific nation has North and South Islands.", "Its capital is Wellington.", "The Lord of the Rings films were shot here."] },
+    { country: "Indonesia", code: "id", flag: "🇮🇩", aliases: ["indonesia"], hints: ["This Southeast Asian nation contains thousands of islands.", "Jakarta is its largest city.", "Bali is one of its most famous islands."] },
+    { country: "Philippines", code: "ph", flag: "🇵🇭", aliases: ["philippines", "the philippines"], hints: ["This Southeast Asian archipelago has over 7,000 islands.", "Its capital is Manila.", "It was named after a Spanish king."] },
+    { country: "Vietnam", code: "vn", flag: "🇻🇳", aliases: ["vietnam", "viet nam"], hints: ["This long, narrow country is in Southeast Asia.", "Its capital is Hanoi.", "Known for pho and Ha Long Bay."] },
+    { country: "Pakistan", code: "pk", flag: "🇵🇰", aliases: ["pakistan"], hints: ["This South Asian country borders India and Afghanistan.", "Its capital is Islamabad.", "K2 lies on its northern border region."] },
+    { country: "Bangladesh", code: "bd", flag: "🇧🇩", aliases: ["bangladesh"], hints: ["This densely populated country lies on the Bay of Bengal.", "Its capital is Dhaka.", "Most of it sits in the Ganges-Brahmaputra delta."] },
+    { country: "United Arab Emirates", code: "ae", flag: "🇦🇪", aliases: ["united arab emirates", "uae", "emirates"], hints: ["This Gulf country is a federation of seven emirates.", "Its capital is Abu Dhabi.", "Dubai and the Burj Khalifa are here."] },
+    { country: "Iceland", code: "is", flag: "🇮🇸", aliases: ["iceland"], hints: ["This Nordic island sits in the North Atlantic.", "Its capital is Reykjavik.", "Known for volcanoes, glaciers, and geysers."] },
+    { country: "Jamaica", code: "jm", flag: "🇯🇲", aliases: ["jamaica"], hints: ["This Caribbean island nation lies south of Cuba.", "Its capital is Kingston.", "Reggae and Bob Marley are closely associated with it."] }
 ];
 
 function normaliseCountryGuess(text) {
@@ -1400,11 +1400,12 @@ function countryLobbyButtons(gameId, disabled = false) {
 
 function countryLobbyEmbed(game) {
     return belovedEmbed("🌍 Guess the Country — Tournament Lobby")
-        .setDescription(`React with ${COUNTRY_JOIN_EMOJI} to enter!\n\n**How it works**\nA country is described with clues. The **first living player** to type the correct country is safe and earns a point. Everyone else loses a life. Lose all lives and you are eliminated.`)
+        .setDescription(`React with ${COUNTRY_JOIN_EMOJI} to enter!\n\n**How it works**\nEach round shows a **country flag image** or progressive clues, depending on the selected mode. The **first living player** to type the correct country is safe and earns a point. Everyone else loses a life. Lose all lives and you are eliminated.`)
         .addFields(
             { name: "🎮 Host", value: `<@${game.hostId}>`, inline: true },
             { name: "❤️ Lives", value: `${game.startingLives}`, inline: true },
             { name: "⏱️ Round time", value: `${game.roundSeconds} seconds`, inline: true },
+            { name: "🖼️ Game mode", value: game.mode === "flag" ? "Flag images" : game.mode === "clues" ? "Text clues" : "Mixed visuals + clues", inline: true },
             { name: `👥 Players (${game.players.size})`, value: countryPlayerLines(game), inline: false },
             { name: "🚪 Lobby closes", value: `<t:${Math.floor(game.lobbyEndsAt / 1000)}:R>`, inline: false }
         )
@@ -1412,16 +1413,42 @@ function countryLobbyEmbed(game) {
         .setTimestamp();
 }
 
-function countryRoundEmbed(game, question) {
-    return belovedEmbed(`🌍 Guess the Country • Round ${game.round}`)
-        .setDescription(`## ❓ WHICH COUNTRY IS IT?\n\n### Clue 1\n> ${question.hints[0]}\n\nType the country name in chat. First correct answer wins the round!`)
+function countryFlagUrl(question, width = 640) {
+    return `https://flagcdn.com/w${width}/${question.code}.png`;
+}
+
+function countryRoundType(game) {
+    if (game.mode === "mixed") return Math.random() < 0.65 ? "flag" : "clues";
+    return game.mode;
+}
+
+function countryRoundEmbed(game, question, hintLevel = 1) {
+    const isFlagRound = game.currentRoundType === "flag";
+    const title = isFlagRound ? "🚩 GUESS THIS FLAG" : "❓ WHICH COUNTRY IS IT?";
+    let description = `## ${title}\n\n`;
+
+    if (isFlagRound) {
+        description += "Look closely at the image and type the country name in chat.\n\n**First correct living player wins the round!**";
+    } else {
+        description += `### Clue 1\n> ${question.hints[0]}`;
+        if (hintLevel >= 2) description += `\n\n### Clue 2\n> ${question.hints[1]}`;
+        if (hintLevel >= 3) description += `\n\n### Final clue\n> ${question.hints[2]}`;
+        description += "\n\nType the country name in chat. First correct answer wins the round!";
+    }
+
+    const embed = belovedEmbed(`🌍 Guess the Country • Round ${game.round}`)
+        .setDescription(description)
         .addFields(
+            { name: "🎨 Round type", value: isFlagRound ? "Flag image" : "Progressive clues", inline: true },
             { name: "⏳ Time remaining", value: `<t:${Math.floor(game.roundEndsAt / 1000)}:R>`, inline: true },
             { name: "🧍 Still alive", value: `${getAliveCountryPlayers(game).length}`, inline: true },
             { name: "🏆 Scores & lives", value: countryPlayerLines(game), inline: false }
         )
-        .setFooter({ text: "Spelling is flexible • Eliminated players cannot answer" })
+        .setFooter({ text: "Spelling is flexible • Eliminated players become spectators" })
         .setTimestamp();
+
+    if (isFlagRound) embed.setImage(countryFlagUrl(question));
+    return embed;
 }
 
 function getAliveCountryPlayers(game) {
@@ -1464,15 +1491,18 @@ async function startCountryRound(game) {
     let choices = COUNTRY_QUESTIONS.filter(item => !game.usedCountries.has(item.country));
     if (!choices.length) { game.usedCountries.clear(); choices = COUNTRY_QUESTIONS; }
     game.currentQuestion = randomItem(choices);
+    game.currentRoundType = countryRoundType(game);
     game.usedCountries.add(game.currentQuestion.country);
     game.roundEndsAt = Date.now() + game.roundSeconds * 1000;
-    const payload = { embeds: [countryRoundEmbed(game, game.currentQuestion)], components: [] };
+    const payload = { embeds: [countryRoundEmbed(game, game.currentQuestion, 1)], components: [] };
     if (game.roundMessage) game.roundMessage = await game.roundMessage.edit(payload).catch(() => null);
     if (!game.roundMessage) game.roundMessage = await game.channel.send(payload);
     game.hintTimer = setTimeout(async () => {
         if (game.status !== "round" || game.roundResolved) return;
-        const embed = countryRoundEmbed(game, game.currentQuestion);
-        embed.setDescription(`## ❓ WHICH COUNTRY IS IT?\n\n### Clue 1\n> ${game.currentQuestion.hints[0]}\n\n### Clue 2\n> ${game.currentQuestion.hints[1]}\n\nType the country name in chat. First correct answer wins the round!`);
+        const embed = countryRoundEmbed(game, game.currentQuestion, 2);
+        if (game.currentRoundType === "flag") {
+            embed.addFields({ name: "💡 Hint", value: game.currentQuestion.hints[0], inline: false });
+        }
         await game.roundMessage.edit({ embeds: [embed] }).catch(() => {});
     }, Math.floor(game.roundSeconds * 500));
     game.roundTimer = setTimeout(() => resolveCountryRound(game, null).catch(console.error), game.roundSeconds * 1000);
@@ -1494,7 +1524,17 @@ async function resolveCountryRound(game, winnerId) {
     const answer = `${game.currentQuestion.flag} **${game.currentQuestion.country}**`;
     const resultText = winnerId ? `⚡ <@${winnerId}> guessed first and is **SAFE**!` : "⏰ Nobody answered in time. Every living player lost a life!";
     const eliminationText = eliminatedNow.length ? `\n\n💀 **Eliminated:** ${eliminatedNow.map(id => `<@${id}>`).join(", ")}` : "";
-    const embed = belovedEmbed(`✅ Round ${game.round} Complete`).setDescription(`${resultText}\n\nThe answer was ${answer}.${eliminationText}`).addFields({ name: "📊 Tournament status", value: countryPlayerLines(game) }).setFooter({ text: "Next round begins in 4 seconds" }).setTimestamp();
+    const embed = belovedEmbed(`✅ Round ${game.round} Complete`)
+        .setDescription(`${resultText}
+
+The answer was ${answer}.${eliminationText}`)
+        .addFields(
+            { name: "🧠 Extra fact", value: game.currentQuestion.hints[2], inline: false },
+            { name: "📊 Tournament status", value: countryPlayerLines(game), inline: false }
+        )
+        .setThumbnail(countryFlagUrl(game.currentQuestion, 320))
+        .setFooter({ text: "Next round begins in 4 seconds" })
+        .setTimestamp();
     await game.roundMessage.edit({ embeds: [embed] }).catch(() => {});
     if (getAliveCountryPlayers(game).length <= 1) return setTimeout(() => endCountryGame(game, "winner").catch(console.error), 4000);
     game.status = "between";
@@ -1701,7 +1741,12 @@ const commands = [
         .setDescription("Start an elimination Guess the Country tournament")
         .addIntegerOption(option => option.setName("lives").setDescription("Lives per player (1-3)").setMinValue(1).setMaxValue(3).setRequired(false))
         .addIntegerOption(option => option.setName("lobby").setDescription("Join time in seconds (15-60)").setMinValue(15).setMaxValue(60).setRequired(false))
-        .addIntegerOption(option => option.setName("roundtime").setDescription("Seconds per country (10-30)").setMinValue(10).setMaxValue(30).setRequired(false)),
+        .addIntegerOption(option => option.setName("roundtime").setDescription("Seconds per country (10-30)").setMinValue(10).setMaxValue(30).setRequired(false))
+        .addStringOption(option => option.setName("mode").setDescription("Choose the type of country rounds").setRequired(false).addChoices(
+            { name: "Mixed — flags and clues", value: "mixed" },
+            { name: "Flag images only", value: "flag" },
+            { name: "Clues only", value: "clues" }
+        )),
 
     new SlashCommandBuilder()
         .setName("conflict")
@@ -2753,10 +2798,11 @@ client.on(Events.InteractionCreate, async interaction => {
             const startingLives = interaction.options.getInteger("lives") || 2;
             const lobbySeconds = interaction.options.getInteger("lobby") || 30;
             const roundSeconds = interaction.options.getInteger("roundtime") || 20;
+            const mode = interaction.options.getString("mode") || "mixed";
             const gameId = interaction.id;
             const game = {
                 id: gameId, guildId: interaction.guild.id, channelId: interaction.channel.id, channel: interaction.channel,
-                hostId: interaction.user.id, startingLives, roundSeconds, status: "lobby", round: 0,
+                hostId: interaction.user.id, startingLives, roundSeconds, mode, status: "lobby", round: 0,
                 players: new Map(), usedCountries: new Set(), currentQuestion: null, message: null, roundMessage: null,
                 lobbyEndsAt: Date.now() + lobbySeconds * 1000, roundEndsAt: 0, roundResolved: false,
                 lobbyTimer: null, roundTimer: null, hintTimer: null
