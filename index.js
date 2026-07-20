@@ -1585,6 +1585,159 @@ async function startCountryGame(game) {
     setTimeout(() => startCountryRound(game).catch(console.error), 3000);
 }
 
+
+
+// ==================================================
+// RED LIGHT, GREEN LIGHT
+// ==================================================
+
+const activeRedLightGames = new Map();
+const redLightGameByChannel = new Map();
+
+function rlglAlivePlayers(game) {
+    return [...game.players.values()].filter(player => !player.eliminated);
+}
+
+function rlglTrack(progress, distance) {
+    const length = 16;
+    const filled = Math.max(0, Math.min(length, Math.floor((progress / distance) * length)));
+    return `${"🟩".repeat(filled)}${"⬜".repeat(length - filled)} 🏁`;
+}
+
+function rlglPlayerList(game) {
+    const players = [...game.players.values()].sort((a, b) =>
+        Number(a.eliminated) - Number(b.eliminated) || b.progress - a.progress
+    );
+    if (!players.length) return "Nobody has joined yet.";
+    return players.map((player, index) => {
+        if (player.eliminated) return `💀 <@${player.id}> — eliminated`;
+        return `${index === 0 && game.status === "playing" ? "👑 " : ""}<@${player.id}> — **${player.progress}/${game.distance}**\n${rlglTrack(player.progress, game.distance)}`;
+    }).join("\n\n").slice(0, 3900);
+}
+
+function rlglLobbyEmbed(game) {
+    return belovedEmbed("🚦 Red Light, Green Light")
+        .setDescription(
+            `Press **Join Game** below to enter!\n\n` +
+            `🟢 On **GREEN LIGHT**, spam **RUN** to move.\n` +
+            `🔴 On **RED LIGHT**, do not touch the button or you are instantly eliminated.\n` +
+            `🏁 First player to reach the finish line wins.\n\n` +
+            `**Players (${game.players.size}/${game.maxPlayers})**\n${rlglPlayerList(game)}`
+        )
+        .addFields({ name: "⏳ Lobby closes", value: `<t:${Math.floor(game.lobbyEndsAt / 1000)}:R>`, inline: true })
+        .setFooter({ text: "The host can start early with 2 or more players." })
+        .setTimestamp();
+}
+
+function rlglGameEmbed(game, finalText = null) {
+    const phaseTitle = game.phase === "green" ? "🟢 GREEN LIGHT — RUN!" : game.phase === "red" ? "🔴 RED LIGHT — FREEZE!" : "⏳ Get ready...";
+    return belovedEmbed(finalText ? "🏆 Red Light, Green Light — Finished" : phaseTitle)
+        .setDescription(
+            `${finalText || (game.phase === "green" ? "Spam the **RUN** button now!" : game.phase === "red" ? "Do **NOT** click. One click means elimination." : "The game is about to begin...")}\n\n` +
+            `**Cycle:** ${game.cycle}\n` +
+            `**Players remaining:** ${rlglAlivePlayers(game).length}\n\n` +
+            rlglPlayerList(game)
+        )
+        .setFooter({ text: finalText ? "Beloved saw every illegal movement." : "The light changes at a random time — stay alert." })
+        .setTimestamp();
+}
+
+function rlglLobbyButtons(gameId, disabled = false) {
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`rlgl:join:${gameId}`).setLabel("Join Game").setEmoji("🚦").setStyle(ButtonStyle.Success).setDisabled(disabled),
+            new ButtonBuilder().setCustomId(`rlgl:leave:${gameId}`).setLabel("Leave").setEmoji("🚪").setStyle(ButtonStyle.Secondary).setDisabled(disabled),
+            new ButtonBuilder().setCustomId(`rlgl:start:${gameId}`).setLabel("Start Now").setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(disabled),
+            new ButtonBuilder().setCustomId(`rlgl:cancel:${gameId}`).setLabel("Cancel").setEmoji("✖️").setStyle(ButtonStyle.Danger).setDisabled(disabled)
+        )
+    ];
+}
+
+function rlglRunButton(game, disabled = false) {
+    const isGreen = game.phase === "green";
+    return [new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`rlgl:run:${game.id}`)
+            .setLabel(isGreen ? "RUN!" : game.phase === "red" ? "FREEZE!" : "GET READY")
+            .setEmoji(isGreen ? "🏃" : game.phase === "red" ? "🛑" : "⏳")
+            .setStyle(isGreen ? ButtonStyle.Success : game.phase === "red" ? ButtonStyle.Danger : ButtonStyle.Secondary)
+            .setDisabled(disabled)
+    )];
+}
+
+function clearRlglTimers(game) {
+    clearTimeout(game.lobbyTimer);
+    clearTimeout(game.phaseTimer);
+    clearTimeout(game.renderTimer);
+}
+
+async function renderRlgl(game) {
+    if (!game.message || game.status === "ended") return;
+    await game.message.edit({ embeds: [rlglGameEmbed(game)], components: rlglRunButton(game) }).catch(() => {});
+}
+
+function scheduleRlglRender(game) {
+    if (game.renderTimer || game.status !== "playing") return;
+    game.renderTimer = setTimeout(async () => {
+        game.renderTimer = null;
+        await renderRlgl(game);
+    }, 350);
+}
+
+async function endRlglGame(game, reason = "winner", winnerId = null) {
+    if (!game || game.status === "ended") return;
+    game.status = "ended";
+    clearRlglTimers(game);
+    activeRedLightGames.delete(game.id);
+    redLightGameByChannel.delete(game.channelId);
+
+    let finalText;
+    if (reason === "cancelled") finalText = "🚫 The host cancelled the game.";
+    else if (reason === "not-enough") finalText = "😭 The game ended because fewer than two players joined.";
+    else if (winnerId) finalText = `🎉 <@${winnerId}> crossed the finish line first and wins **Red Light, Green Light**!`;
+    else {
+        const survivors = rlglAlivePlayers(game);
+        finalText = survivors.length === 1
+            ? `🎉 <@${survivors[0].id}> is the last player standing and wins!`
+            : "💀 Everyone was eliminated. The doll wins.";
+    }
+
+    if (game.message) {
+        await game.message.edit({ embeds: [rlglGameEmbed(game, finalText)], components: rlglRunButton(game, true), allowedMentions: { parse: [] } }).catch(() => {});
+    }
+}
+
+async function setRlglPhase(game, phase) {
+    if (!game || game.status !== "playing") return;
+    game.phase = phase;
+    game.phaseToken += 1;
+    game.phaseClicks.clear();
+    await renderRlgl(game);
+
+    if (phase === "green") {
+        const duration = 2200 + Math.floor(Math.random() * 2300);
+        game.phaseTimer = setTimeout(() => setRlglPhase(game, "red").catch(console.error), duration);
+    } else {
+        const alive = rlglAlivePlayers(game);
+        if (alive.length <= 1) return endRlglGame(game, "last-standing", alive[0]?.id || null);
+        game.cycle += 1;
+        const duration = 1400 + Math.floor(Math.random() * 2100);
+        game.phaseTimer = setTimeout(() => setRlglPhase(game, "green").catch(console.error), duration);
+    }
+}
+
+async function startRlglGame(game) {
+    if (!game || game.status !== "lobby") return;
+    clearTimeout(game.lobbyTimer);
+    if (game.players.size < 2) return endRlglGame(game, "not-enough");
+    game.status = "playing";
+    game.phase = "ready";
+    game.cycle = 1;
+    await game.message.edit({ embeds: [rlglGameEmbed(game)], components: rlglRunButton(game, true) }).catch(() => {});
+    game.phaseTimer = setTimeout(() => setRlglPhase(game, "green").catch(console.error), 2500);
+}
+
+
 // ==================================================
 // SLASH COMMANDS
 // ==================================================
@@ -1770,6 +1923,13 @@ const commands = [
     new SlashCommandBuilder()
         .setName("wheel")
         .setDescription("Spin the wheel and select a random server member"),
+
+
+    new SlashCommandBuilder()
+        .setName("redlight")
+        .setDescription("Start a Red Light, Green Light elimination race")
+        .addIntegerOption(option => option.setName("lobby").setDescription("Join time in seconds (15-60)").setMinValue(15).setMaxValue(60).setRequired(false))
+        .addIntegerOption(option => option.setName("distance").setDescription("Finish distance (20-50, default 30)").setMinValue(20).setMaxValue(50).setRequired(false)),
 
     new SlashCommandBuilder()
         .setName("countrygame")
@@ -2109,6 +2269,62 @@ client.on(Events.InteractionCreate, async interaction => {
                 }
                 game.turn = defender;
                 return interaction.update({ embeds: [buildFightEmbed(game)], components: [buildFightButtons(gameId)] });
+            }
+
+
+            if (interaction.customId.startsWith("rlgl:")) {
+                const [, action, gameId] = interaction.customId.split(":");
+                const game = activeRedLightGames.get(gameId);
+                if (!game || game.status === "ended") return interaction.reply({ content: "This Red Light, Green Light game is over.", ephemeral: true });
+
+                if (action === "join" || action === "leave") {
+                    if (game.status !== "lobby") return interaction.reply({ content: "The race has already started.", ephemeral: true });
+                    if (action === "join") {
+                        if (game.players.has(interaction.user.id)) return interaction.reply({ content: "🚦 You are already in the game.", ephemeral: true });
+                        if (game.players.size >= game.maxPlayers) return interaction.reply({ content: "This lobby is full.", ephemeral: true });
+                        game.players.set(interaction.user.id, { id: interaction.user.id, progress: 0, eliminated: false, lastClickAt: 0 });
+                    } else {
+                        if (interaction.user.id === game.hostId) return interaction.reply({ content: "The host cannot leave. Use Cancel instead.", ephemeral: true });
+                        game.players.delete(interaction.user.id);
+                    }
+                    await interaction.update({ embeds: [rlglLobbyEmbed(game)], components: rlglLobbyButtons(game.id) });
+                    return;
+                }
+
+                if (action === "start" || action === "cancel") {
+                    if (interaction.user.id !== game.hostId) return interaction.reply({ content: "Only the host can control this game.", ephemeral: true });
+                    await interaction.deferUpdate();
+                    if (action === "start") return startRlglGame(game);
+                    return endRlglGame(game, "cancelled");
+                }
+
+                if (action === "run") {
+                    const player = game.players.get(interaction.user.id);
+                    if (game.status !== "playing" || !player || player.eliminated) return interaction.reply({ content: "🍿 You are only spectating this race.", ephemeral: true });
+                    const now = Date.now();
+                    if (now - player.lastClickAt < 180) return interaction.deferUpdate();
+                    player.lastClickAt = now;
+
+                    if (game.phase === "red") {
+                        player.eliminated = true;
+                        await interaction.deferUpdate();
+                        const alive = rlglAlivePlayers(game);
+                        if (alive.length <= 1) return endRlglGame(game, "last-standing", alive[0]?.id || null);
+                        await game.message.edit({ embeds: [rlglGameEmbed(game)], components: rlglRunButton(game) }).catch(() => {});
+                        return;
+                    }
+
+                    if (game.phase !== "green") return interaction.deferUpdate();
+                    const clickKey = `${game.phaseToken}:${interaction.user.id}`;
+                    const clicks = game.phaseClicks.get(clickKey) || 0;
+                    if (clicks >= game.maxMovesPerGreen) return interaction.deferUpdate();
+                    game.phaseClicks.set(clickKey, clicks + 1);
+                    player.progress = Math.min(game.distance, player.progress + 1);
+                    await interaction.deferUpdate();
+                    if (player.progress >= game.distance) return endRlglGame(game, "winner", player.id);
+                    scheduleRlglRender(game);
+                    return;
+                }
             }
 
             if (interaction.customId.startsWith("country:")) {
@@ -2820,6 +3036,43 @@ client.on(Events.InteractionCreate, async interaction => {
                 .setFooter({ text: "The wheel is never wrong. Legally." })
                 .setTimestamp();
             return interaction.editReply({ embeds: [embed], allowedMentions: { users: [selected.id] } });
+        }
+
+
+        if (command === "redlight") {
+            if (!interaction.inGuild()) return interaction.reply({ content: "This game can only be played in a server.", ephemeral: true });
+            if (redLightGameByChannel.has(interaction.channel.id)) return interaction.reply({ content: "🚦 A Red Light, Green Light game is already active in this channel.", ephemeral: true });
+            const lobbySeconds = interaction.options.getInteger("lobby") || 30;
+            const distance = interaction.options.getInteger("distance") || 30;
+            const gameId = interaction.id;
+            const game = {
+                id: gameId,
+                guildId: interaction.guild.id,
+                channelId: interaction.channel.id,
+                channel: interaction.channel,
+                hostId: interaction.user.id,
+                status: "lobby",
+                phase: "lobby",
+                cycle: 0,
+                distance,
+                maxPlayers: 25,
+                maxMovesPerGreen: 4,
+                players: new Map(),
+                phaseClicks: new Map(),
+                phaseToken: 0,
+                message: null,
+                lobbyEndsAt: Date.now() + lobbySeconds * 1000,
+                lobbyTimer: null,
+                phaseTimer: null,
+                renderTimer: null
+            };
+            game.players.set(interaction.user.id, { id: interaction.user.id, progress: 0, eliminated: false, lastClickAt: 0 });
+            activeRedLightGames.set(gameId, game);
+            redLightGameByChannel.set(interaction.channel.id, gameId);
+            await interaction.reply({ embeds: [rlglLobbyEmbed(game)], components: rlglLobbyButtons(gameId), fetchReply: true });
+            game.message = await interaction.fetchReply();
+            game.lobbyTimer = setTimeout(() => startRlglGame(game).catch(console.error), lobbySeconds * 1000);
+            return;
         }
 
         if (command === "countrygame") {
