@@ -35,13 +35,7 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName("hug")
-        .setDescription("Give someone a hug")
-        .addUserOption(option =>
-            option
-                .setName("user")
-                .setDescription("Person")
-                .setRequired(true)
-        ),
+        .setDescription("Hug your spouse"),
 
     new SlashCommandBuilder()
         .setName("ship")
@@ -158,6 +152,77 @@ const commands = [
         .setName("marry")
         .setDescription("Propose a totally legitimate Discord marriage")
         .addUserOption(option => option.setName("user").setDescription("Who are you proposing to?").setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName("married")
+        .setDescription("See who you are married to"),
+
+    new SlashCommandBuilder()
+        .setName("divorce")
+        .setDescription("Divorce your current spouse"),
+
+    new SlashCommandBuilder()
+        .setName("kiss")
+        .setDescription("Kiss your spouse"),
+
+    new SlashCommandBuilder()
+        .setName("date")
+        .setDescription("Take your spouse on a random date"),
+
+    new SlashCommandBuilder()
+        .setName("gift")
+        .setDescription("Buy your spouse a gift")
+        .addStringOption(option =>
+            option
+                .setName("gift")
+                .setDescription("Choose a gift")
+                .setRequired(true)
+                .addChoices(
+                    { name: "Flowers — 500 coins", value: "flowers" },
+                    { name: "Chocolate — 750 coins", value: "chocolate" },
+                    { name: "Teddy Bear — 1,500 coins", value: "teddy" },
+                    { name: "Designer Bag — 15,000 coins", value: "designer_bag" },
+                    { name: "Private Jet — 250,000 coins", value: "private_jet" }
+                )
+        ),
+
+    new SlashCommandBuilder()
+        .setName("ring")
+        .setDescription("Manage your marriage ring")
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("buy")
+                .setDescription("Buy or upgrade your marriage ring")
+                .addStringOption(option =>
+                    option
+                        .setName("ring")
+                        .setDescription("Choose a ring")
+                        .setRequired(true)
+                        .addChoices(
+                            { name: "Silver Ring — 5,000 coins", value: "silver" },
+                            { name: "Gold Ring — 20,000 coins", value: "gold" },
+                            { name: "Diamond Ring — 75,000 coins", value: "diamond" },
+                            { name: "Royal Ring — 250,000 coins", value: "royal" }
+                        )
+                )
+        ),
+
+    new SlashCommandBuilder()
+        .setName("tweet")
+        .setDescription("Make a funny fake tweet")
+        .addUserOption(option =>
+            option
+                .setName("user")
+                .setDescription("Who is supposedly tweeting?")
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName("text")
+                .setDescription("What should the fake tweet say?")
+                .setRequired(true)
+                .setMaxLength(280)
+        ),
 
     new SlashCommandBuilder()
         .setName("court")
