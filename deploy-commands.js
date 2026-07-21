@@ -246,6 +246,33 @@ const commands = [
         .setDescription("Spin the wheel and select a random server member"),
 
     new SlashCommandBuilder()
+        .setName("blacklist")
+        .setDescription("Manage words that are instantly deleted")
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("add")
+                .setDescription("Add a word or phrase to the blacklist")
+                .addStringOption(option =>
+                    option.setName("word").setDescription("Word or phrase to block").setRequired(true).setMaxLength(100)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("remove")
+                .setDescription("Remove a word or phrase from the blacklist")
+                .addStringOption(option =>
+                    option.setName("word").setDescription("Word or phrase to unblock").setRequired(true).setMaxLength(100)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand.setName("list").setDescription("Show all blacklisted words")
+        )
+        .addSubcommand(subcommand =>
+            subcommand.setName("clear").setDescription("Remove every blacklisted word")
+        ),
+
+    new SlashCommandBuilder()
         .setName("conflict")
         .setDescription("Configure Beloved Conflict Guard")
         .setDefaultMemberPermissions(
