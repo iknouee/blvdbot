@@ -58,6 +58,79 @@ const client = new Client({
 
 
 // ==================================================
+// SERVER WORD BLACKLIST
+// ==================================================
+
+const BLACKLIST_FILE = path.join(__dirname, "beloved-blacklist.json");
+let blacklistData = { guilds: {} };
+
+function loadBlacklist() {
+    try {
+        if (fs.existsSync(BLACKLIST_FILE)) {
+            const parsed = JSON.parse(fs.readFileSync(BLACKLIST_FILE, "utf8"));
+            if (parsed && typeof parsed === "object" && parsed.guilds) blacklistData = parsed;
+        }
+    } catch (error) {
+        console.error("Blacklist load failed:", error);
+    }
+}
+
+function saveBlacklist() {
+    try {
+        const temp = `${BLACKLIST_FILE}.tmp`;
+        fs.writeFileSync(temp, JSON.stringify(blacklistData, null, 2));
+        fs.renameSync(temp, BLACKLIST_FILE);
+    } catch (error) {
+        console.error("Blacklist save failed:", error);
+    }
+}
+
+function normaliseBlacklistText(value) {
+    return String(value || "")
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/[’‘`]/g, "'")
+        .replace(/[^a-z0-9'\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function getGuildBlacklist(guildId) {
+    if (!blacklistData.guilds[guildId]) blacklistData.guilds[guildId] = [];
+    return blacklistData.guilds[guildId];
+}
+
+function findBlacklistedWord(guildId, content) {
+    const clean = normaliseBlacklistText(content);
+    if (!clean) return null;
+    return getGuildBlacklist(guildId).find(entry => {
+        const blocked = normaliseBlacklistText(entry);
+        if (!blocked) return false;
+        return (` ${clean} `).includes(` ${blocked} `);
+    }) || null;
+}
+
+async function processBlacklistedMessage(message) {
+    if (!message.guild || !message.content) return false;
+    const matched = findBlacklistedWord(message.guild.id, message.content);
+    if (!matched) return false;
+
+    try {
+        await message.delete();
+        const notice = await message.channel.send({
+            content: `🚫 <@${message.author.id}>, that message contained a blacklisted word and was deleted.`,
+            allowedMentions: { users: [message.author.id] }
+        });
+        setTimeout(() => notice.delete().catch(() => {}), 5000);
+    } catch (error) {
+        console.error("Could not delete blacklisted message:", error.message);
+    }
+    return true;
+}
+
+loadBlacklist();
+
+// ==================================================
 // ECONOMY + CASINO
 // ==================================================
 
@@ -2439,6 +2512,33 @@ const commands = [
         .addIntegerOption(option => option.setName("roundtime").setDescription("Seconds per flag (15-45, default 25)").setMinValue(15).setMaxValue(45).setRequired(false)),
 
     new SlashCommandBuilder()
+        .setName("blacklist")
+        .setDescription("Manage words that are instantly deleted")
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("add")
+                .setDescription("Add a word or phrase to the blacklist")
+                .addStringOption(option =>
+                    option.setName("word").setDescription("Word or phrase to block").setRequired(true).setMaxLength(100)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("remove")
+                .setDescription("Remove a word or phrase from the blacklist")
+                .addStringOption(option =>
+                    option.setName("word").setDescription("Word or phrase to unblock").setRequired(true).setMaxLength(100)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand.setName("list").setDescription("Show all blacklisted words")
+        )
+        .addSubcommand(subcommand =>
+            subcommand.setName("clear").setDescription("Remove every blacklisted word")
+        ),
+
+    new SlashCommandBuilder()
         .setName("conflict")
         .setDescription("Configure Beloved Conflict Guard")
         .setDefaultMemberPermissions(
@@ -3780,6 +3880,50 @@ Beloved now pronounces you chronically online and chronically online.
             return;
         }
 
+        if (command === "blacklist") {
+            if (!interaction.inGuild()) {
+                return interaction.reply({ content: "This command only works inside a server.", ephemeral: true });
+            }
+
+            const subcommand = interaction.options.getSubcommand();
+            const entries = getGuildBlacklist(interaction.guild.id);
+
+            if (subcommand === "add") {
+                const raw = interaction.options.getString("word").trim();
+                const clean = normaliseBlacklistText(raw);
+                if (!clean) return interaction.reply({ content: "Enter a valid word or phrase.", ephemeral: true });
+                if (entries.some(item => normaliseBlacklistText(item) === clean)) {
+                    return interaction.reply({ content: `🚫 **${raw}** is already blacklisted.`, ephemeral: true });
+                }
+                entries.push(raw);
+                entries.sort((a, b) => a.localeCompare(b));
+                saveBlacklist();
+                return interaction.reply({ content: `✅ Added **${raw}**. Messages containing it will now be deleted instantly.`, ephemeral: true });
+            }
+
+            if (subcommand === "remove") {
+                const raw = interaction.options.getString("word").trim();
+                const clean = normaliseBlacklistText(raw);
+                const index = entries.findIndex(item => normaliseBlacklistText(item) === clean);
+                if (index === -1) return interaction.reply({ content: `❌ **${raw}** is not blacklisted.`, ephemeral: true });
+                const [removed] = entries.splice(index, 1);
+                saveBlacklist();
+                return interaction.reply({ content: `✅ Removed **${removed}** from the blacklist.`, ephemeral: true });
+            }
+
+            if (subcommand === "list") {
+                if (!entries.length) return interaction.reply({ content: "The blacklist is currently empty.", ephemeral: true });
+                const shown = entries.map((word, index) => `${index + 1}. ${word}`).join("\n");
+                return interaction.reply({ content: `🚫 **Blacklisted words (${entries.length})**\n\n${shown}`.slice(0, 1900), ephemeral: true });
+            }
+
+            if (subcommand === "clear") {
+                blacklistData.guilds[interaction.guild.id] = [];
+                saveBlacklist();
+                return interaction.reply({ content: "✅ Cleared the server blacklist.", ephemeral: true });
+            }
+        }
+
         if (command === "conflict") {
             if (!interaction.guild) {
                 return interaction.reply({
@@ -3988,6 +4132,8 @@ client.on(Events.MessageCreate, async message => {
     }
 
     try {
+        if (await processBlacklistedMessage(message)) return;
+
         const activeBeefKey = beefKey(message.channel.id, message.author.id);
         const beef = activeBeefs.get(activeBeefKey);
 
