@@ -2238,16 +2238,6 @@ const commands = [
         ),
 
     new SlashCommandBuilder()
-        .setName("hug")
-        .setDescription("Give someone a hug")
-        .addUserOption(option =>
-            option
-                .setName("user")
-                .setDescription("Person")
-                .setRequired(true)
-        ),
-
-    new SlashCommandBuilder()
         .setName("ship")
         .setDescription("Ship two people")
         .addUserOption(option =>
@@ -2988,21 +2978,6 @@ Beloved now pronounces you chronically online and chronically online.
                 `💎 ${user} is officially approved by Beloved.`,
                 `🌟 Scientists tried to measure ${user}'s greatness. They gave up.`,
                 `🫡 ${user} is actually built different.`
-            ];
-
-            return interaction.reply(
-                replies[Math.floor(Math.random() * replies.length)]
-            );
-        }
-
-        if (command === "hug") {
-            const user = interaction.options.getUser("user");
-
-            const replies = [
-                `🤗 Beloved launched a hug missile at ${user}.`,
-                `🫂 ${user} received a certified premium hug.`,
-                `💖 Hug complete. Happiness increased by 7%.`,
-                `🤖 Robot arms activated. ${user} has been hugged.`
             ];
 
             return interaction.reply(
