@@ -1176,6 +1176,78 @@ const activeMarriages = new Map();
 const activeCourts = new Map();
 const activeFights = new Map();
 
+const MARRIAGES_FILE = path.join(__dirname, "beloved-marriages.json");
+let marriageData = { guilds: {} };
+
+function loadMarriages() {
+    try {
+        if (fs.existsSync(MARRIAGES_FILE)) {
+            const parsed = JSON.parse(fs.readFileSync(MARRIAGES_FILE, "utf8"));
+            if (parsed && typeof parsed === "object" && parsed.guilds) marriageData = parsed;
+        }
+    } catch (error) {
+        console.error("Marriage data load failed:", error);
+    }
+}
+
+function saveMarriages() {
+    try {
+        const temp = `${MARRIAGES_FILE}.tmp`;
+        fs.writeFileSync(temp, JSON.stringify(marriageData, null, 2));
+        fs.renameSync(temp, MARRIAGES_FILE);
+    } catch (error) {
+        console.error("Marriage data save failed:", error);
+    }
+}
+
+function getGuildMarriages(guildId) {
+    if (!marriageData.guilds[guildId]) marriageData.guilds[guildId] = {};
+    return marriageData.guilds[guildId];
+}
+
+function getMarriage(guildId, userId) {
+    return getGuildMarriages(guildId)[userId] || null;
+}
+
+function createMarriage(guildId, firstUserId, secondUserId) {
+    const guildMarriages = getGuildMarriages(guildId);
+    const marriedAt = Date.now();
+    const shared = { marriedAt, kisses: 0, hugs: 0, dates: 0, gifts: 0, ring: null };
+    guildMarriages[firstUserId] = { partnerId: secondUserId, ...shared };
+    guildMarriages[secondUserId] = { partnerId: firstUserId, ...shared };
+    saveMarriages();
+    return marriedAt;
+}
+
+function updateMarriagePair(guildId, userId, updater) {
+    const guildMarriages = getGuildMarriages(guildId);
+    const first = guildMarriages[userId];
+    if (!first) return null;
+    const second = guildMarriages[first.partnerId];
+    updater(first);
+    if (second) {
+        second.kisses = first.kisses || 0;
+        second.hugs = first.hugs || 0;
+        second.dates = first.dates || 0;
+        second.gifts = first.gifts || 0;
+        second.ring = first.ring || null;
+    }
+    saveMarriages();
+    return first;
+}
+
+function removeMarriage(guildId, userId) {
+    const guildMarriages = getGuildMarriages(guildId);
+    const marriage = guildMarriages[userId];
+    if (!marriage) return null;
+    delete guildMarriages[userId];
+    if (guildMarriages[marriage.partnerId]?.partnerId === userId) delete guildMarriages[marriage.partnerId];
+    saveMarriages();
+    return marriage;
+}
+
+loadMarriages();
+
 function disableRow(row) {
     return new ActionRowBuilder().addComponents(
         row.components.map(component =>
@@ -2292,6 +2364,56 @@ const commands = [
         .addUserOption(option => option.setName("user").setDescription("Who are you proposing to?").setRequired(true)),
 
     new SlashCommandBuilder()
+        .setName("divorce")
+        .setDescription("Divorce the person you are currently married to"),
+
+    new SlashCommandBuilder()
+        .setName("married")
+        .setDescription("See your marriage, ring and relationship stats"),
+
+    new SlashCommandBuilder()
+        .setName("kiss")
+        .setDescription("Kiss the person you are married to"),
+
+    new SlashCommandBuilder()
+        .setName("hug")
+        .setDescription("Hug the person you are married to"),
+
+    new SlashCommandBuilder()
+        .setName("date")
+        .setDescription("Take your spouse on a random date"),
+
+    new SlashCommandBuilder()
+        .setName("gift")
+        .setDescription("Buy your spouse a gift")
+        .addStringOption(option => option.setName("gift").setDescription("Choose a gift").setRequired(true)
+            .addChoices(
+                { name: "Flowers — 250 coins", value: "flowers" },
+                { name: "Chocolate — 500 coins", value: "chocolate" },
+                { name: "Teddy bear — 1,000 coins", value: "teddy" },
+                { name: "Designer bag — 7,500 coins", value: "bag" },
+                { name: "Private jet — 100,000 coins", value: "jet" }
+            )),
+
+    new SlashCommandBuilder()
+        .setName("ring")
+        .setDescription("Marriage ring commands")
+        .addSubcommand(sub => sub.setName("buy").setDescription("Buy or upgrade your marriage ring")
+            .addStringOption(option => option.setName("ring").setDescription("Choose a ring").setRequired(true)
+                .addChoices(
+                    { name: "Silver ring — 5,000 coins", value: "silver" },
+                    { name: "Gold ring — 20,000 coins", value: "gold" },
+                    { name: "Diamond ring — 75,000 coins", value: "diamond" },
+                    { name: "BLVD royal ring — 250,000 coins", value: "royal" }
+                ))),
+
+    new SlashCommandBuilder()
+        .setName("tweet")
+        .setDescription("Create a fake tweet for a server member")
+        .addUserOption(option => option.setName("user").setDescription("Who posted the fake tweet?").setRequired(true))
+        .addStringOption(option => option.setName("text").setDescription("What did they supposedly tweet?").setRequired(true).setMaxLength(240)),
+
+    new SlashCommandBuilder()
         .setName("court")
         .setDescription("Put someone on trial and let the server vote")
         .addUserOption(option => option.setName("user").setDescription("The defendant").setRequired(true))
@@ -2474,6 +2596,7 @@ client.once(Events.ClientReady, readyClient => {
         ],
         status: "online"
     });
+
 });
 
 
@@ -2588,9 +2711,24 @@ client.on(Events.InteractionCreate, async interaction => {
                 game.ended = true;
                 activeMarriages.delete(gameId);
                 clearTimeout(game.timer);
-                const result = choice === "accept"
-                    ? `💖 <@${game.targetId}> said **YES!**\n\nBeloved now pronounces you chronically online and chronically online.`
-                    : `💔 <@${game.targetId}> said **NO!**\n\n<@${game.proposerId}> has been left at the digital altar.`;
+                let result;
+                if (choice === "accept") {
+                    const proposerMarriage = getMarriage(interaction.guild.id, game.proposerId);
+                    const targetMarriage = getMarriage(interaction.guild.id, game.targetId);
+                    if (proposerMarriage || targetMarriage) {
+                        result = `💔 This wedding cannot happen because one of you is already married.`;
+                    } else {
+                        const marriedAt = createMarriage(interaction.guild.id, game.proposerId, game.targetId);
+                        result = `💖 <@${game.targetId}> said **YES!**
+
+Beloved now pronounces you chronically online and chronically online.
+💍 Married <t:${Math.floor(marriedAt / 1000)}:R>.`;
+                    }
+                } else {
+                    result = `💔 <@${game.targetId}> said **NO!**
+
+<@${game.proposerId}> has been left at the digital altar.`;
+                }
                 return interaction.update({ embeds: [buildMarriageEmbed(game, result)], components: [buildMarriageButtons(gameId, true)] });
             }
 
@@ -3376,6 +3514,14 @@ client.on(Events.InteractionCreate, async interaction => {
             const target = interaction.options.getUser("user");
             if (target.bot) return interaction.reply({ content: "🤖 Bots are not emotionally available.", ephemeral: true });
             if (target.id === interaction.user.id) return interaction.reply({ content: "💍 Self-love is important, but you cannot marry yourself here.", ephemeral: true });
+
+            const yourMarriage = getMarriage(interaction.guild.id, interaction.user.id);
+            if (yourMarriage) return interaction.reply({ content: `💍 You are already married to <@${yourMarriage.partnerId}>. Use **/divorce** first.`, ephemeral: true });
+            const theirMarriage = getMarriage(interaction.guild.id, target.id);
+            if (theirMarriage) return interaction.reply({ content: `💍 <@${target.id}> is already married to <@${theirMarriage.partnerId}>.`, ephemeral: true });
+            const pendingProposal = [...activeMarriages.values()].some(game => !game.ended && [game.proposerId, game.targetId].includes(interaction.user.id));
+            if (pendingProposal) return interaction.reply({ content: "⏳ You already have an active marriage proposal.", ephemeral: true });
+
             const gameId = interaction.id;
             const game = { proposerId: interaction.user.id, targetId: target.id, ended: false, timer: null };
             activeMarriages.set(gameId, game);
@@ -3387,6 +3533,146 @@ client.on(Events.InteractionCreate, async interaction => {
                 await interaction.editReply({ embeds: [buildMarriageEmbed(game, `⏰ <@${game.targetId}> ignored the proposal. Silence is legally considered devastating.`)], components: [buildMarriageButtons(gameId, true)] }).catch(() => {});
             }, 60_000);
             return;
+        }
+
+        if (command === "divorce") {
+            const marriage = getMarriage(interaction.guild.id, interaction.user.id);
+            if (!marriage) return interaction.reply({ content: "💔 You are not married to anyone.", ephemeral: true });
+
+            removeMarriage(interaction.guild.id, interaction.user.id);
+            return interaction.reply({
+                embeds: [belovedEmbed("💔 Divorce Finalised")
+                    .setDescription(`<@${interaction.user.id}> has divorced <@${marriage.partnerId}>.\n\nThe lawyers were Discord moderators and the settlement was zero coins.`)
+                    .setTimestamp()],
+                allowedMentions: { users: [interaction.user.id, marriage.partnerId] }
+            });
+        }
+
+        if (command === "married") {
+            const marriage = getMarriage(interaction.guild.id, interaction.user.id);
+            if (!marriage) return interaction.reply({ content: "💔 You are not married to anyone.", ephemeral: true });
+
+            const ringText = marriage.ring ? `${marriage.ring.emoji} **${marriage.ring.name}**` : "No ring yet — use **/ring buy**";
+            return interaction.reply({
+                embeds: [belovedEmbed("💍 Your Marriage")
+                    .setDescription(`<@${interaction.user.id}> is married to <@${marriage.partnerId}>.\n\n**Wedding date:** <t:${Math.floor(marriage.marriedAt / 1000)}:F>\n**Together:** <t:${Math.floor(marriage.marriedAt / 1000)}:R>\n**Ring:** ${ringText}`)
+                    .addFields(
+                        { name: "💋 Kisses", value: String(marriage.kisses || 0), inline: true },
+                        { name: "🫂 Hugs", value: String(marriage.hugs || 0), inline: true },
+                        { name: "🌹 Dates", value: String(marriage.dates || 0), inline: true },
+                        { name: "🎁 Gifts", value: String(marriage.gifts || 0), inline: true }
+                    )
+                    .setTimestamp()],
+                allowedMentions: { parse: [] }
+            });
+        }
+
+        if (command === "kiss" || command === "hug") {
+            const marriage = getMarriage(interaction.guild.id, interaction.user.id);
+            if (!marriage) return interaction.reply({ content: `💔 You need to be married before using **/${command}**.`, ephemeral: true });
+            const isKiss = command === "kiss";
+            updateMarriagePair(interaction.guild.id, interaction.user.id, data => {
+                if (isKiss) data.kisses = (data.kisses || 0) + 1;
+                else data.hugs = (data.hugs || 0) + 1;
+            });
+            const lines = isKiss ? [
+                "That was suspiciously romantic.", "The whole server just third-wheeled that.", "Beloved has recorded the evidence.", "Get a room. Respectfully."
+            ] : [
+                "Certified wholesome moment.", "Emotional support successfully delivered.", "The marriage survives another day.", "A rare peaceful BLVD moment."
+            ];
+            return interaction.reply({
+                embeds: [belovedEmbed(isKiss ? "💋 Marriage Kiss" : "🫂 Marriage Hug")
+                    .setDescription(`<@${interaction.user.id}> ${isKiss ? "kissed" : "hugged"} <@${marriage.partnerId}>!\n\n${randomItem(lines)}`)
+                    .setTimestamp()],
+                allowedMentions: { users: [marriage.partnerId] }
+            });
+        }
+
+        if (command === "date") {
+            const marriage = getMarriage(interaction.guild.id, interaction.user.id);
+            if (!marriage) return interaction.reply({ content: "💔 You need a spouse before going on a marriage date.", ephemeral: true });
+            const dates = [
+                ["🍿 Cinema Date", "You bought the tickets, then argued over who ate all the popcorn."],
+                ["🍝 Fancy Dinner", "The waiter called you a cute couple. The bill was not cute."],
+                ["🎡 Theme Park", "You went on one scary ride and immediately regretted everything."],
+                ["🌅 Beach Date", "Romantic sunset, stolen chips, and sand absolutely everywhere."],
+                ["🎮 Gaming Date", "You promised not to rage. That promise lasted four minutes."],
+                ["🛍️ Shopping Date", "You went in for one thing and left financially ruined."],
+                ["✈️ Surprise Holiday", "Beloved booked it. Nobody checked whether either of you had a passport."]
+            ];
+            const [title, text] = randomItem(dates);
+            updateMarriagePair(interaction.guild.id, interaction.user.id, data => data.dates = (data.dates || 0) + 1);
+            return interaction.reply({
+                embeds: [belovedEmbed(title).setDescription(`<@${interaction.user.id}> took <@${marriage.partnerId}> on a date!\n\n${text}`).setTimestamp()],
+                allowedMentions: { users: [marriage.partnerId] }
+            });
+        }
+
+        if (command === "gift") {
+            const marriage = getMarriage(interaction.guild.id, interaction.user.id);
+            if (!marriage) return interaction.reply({ content: "💔 You need to be married before buying spouse gifts.", ephemeral: true });
+            const gifts = {
+                flowers: { name: "a bouquet of flowers", emoji: "💐", price: 250 },
+                chocolate: { name: "a luxury box of chocolates", emoji: "🍫", price: 500 },
+                teddy: { name: "a giant teddy bear", emoji: "🧸", price: 1000 },
+                bag: { name: "a designer bag", emoji: "👜", price: 7500 },
+                jet: { name: "a completely unnecessary private jet", emoji: "✈️", price: 100000 }
+            };
+            const gift = gifts[interaction.options.getString("gift")];
+            const wallet = getEconomyUser(interaction.guild.id, interaction.user.id);
+            if (wallet.balance < gift.price) return interaction.reply({ content: `You need ${coins(gift.price)} for that gift. Your wallet has ${coins(wallet.balance)}.`, ephemeral: true });
+            wallet.balance -= gift.price;
+            saveEconomy();
+            updateMarriagePair(interaction.guild.id, interaction.user.id, data => data.gifts = (data.gifts || 0) + 1);
+            return interaction.reply({
+                embeds: [belovedEmbed(`${gift.emoji} Marriage Gift`)
+                    .setDescription(`<@${interaction.user.id}> bought <@${marriage.partnerId}> **${gift.name}**!\n\nCost: ${coins(gift.price)}\nNew balance: ${coins(wallet.balance)}`)
+                    .setTimestamp()],
+                allowedMentions: { users: [marriage.partnerId] }
+            });
+        }
+
+        if (command === "ring") {
+            const marriage = getMarriage(interaction.guild.id, interaction.user.id);
+            if (!marriage) return interaction.reply({ content: "💔 You need to be married before buying a ring.", ephemeral: true });
+            const rings = {
+                silver: { name: "Silver Ring", emoji: "💍", price: 5000, rank: 1 },
+                gold: { name: "Gold Ring", emoji: "🟡", price: 20000, rank: 2 },
+                diamond: { name: "Diamond Ring", emoji: "💎", price: 75000, rank: 3 },
+                royal: { name: "BLVD Royal Ring", emoji: "👑", price: 250000, rank: 4 }
+            };
+            const ring = rings[interaction.options.getString("ring")];
+            if (marriage.ring?.rank >= ring.rank) return interaction.reply({ content: `You already own **${marriage.ring.name}** or a better ring.`, ephemeral: true });
+            const wallet = getEconomyUser(interaction.guild.id, interaction.user.id);
+            if (wallet.balance < ring.price) return interaction.reply({ content: `You need ${coins(ring.price)} for that ring. Your wallet has ${coins(wallet.balance)}.`, ephemeral: true });
+            wallet.balance -= ring.price;
+            saveEconomy();
+            updateMarriagePair(interaction.guild.id, interaction.user.id, data => data.ring = ring);
+            return interaction.reply({
+                embeds: [belovedEmbed(`${ring.emoji} Ring Purchased`)
+                    .setDescription(`<@${interaction.user.id}> bought a **${ring.name}** for their marriage with <@${marriage.partnerId}>!\n\nCost: ${coins(ring.price)}\nNew balance: ${coins(wallet.balance)}`)
+                    .setTimestamp()],
+                allowedMentions: { users: [marriage.partnerId] }
+            });
+        }
+
+        if (command === "tweet") {
+            const target = interaction.options.getUser("user");
+            const text = interaction.options.getString("text");
+            const likes = Math.floor(Math.random() * 98000) + 1200;
+            const reposts = Math.floor(likes * (0.05 + Math.random() * 0.25));
+            const replies = Math.floor(likes * (0.01 + Math.random() * 0.08));
+            const handle = `@${target.username.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 15) || "blvduser"}`;
+            return interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor(0x000000)
+                    .setAuthor({ name: `${target.displayName || target.username}  ✓`, iconURL: target.displayAvatarURL({ size: 256 }) })
+                    .setDescription(`**${handle}**\n\n${text}`)
+                    .addFields({ name: "", value: `💬 ${replies.toLocaleString()}     🔁 ${reposts.toLocaleString()}     ❤️ ${likes.toLocaleString()}     📊 ${(likes * 8).toLocaleString()}` })
+                    .setFooter({ text: "Fake Tweet • Made by Beloved" })
+                    .setTimestamp()],
+                allowedMentions: { parse: [] }
+            });
         }
 
         if (command === "court") {
