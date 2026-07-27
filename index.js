@@ -2633,7 +2633,13 @@ const commands = [
             subcommand
                 .setName("clearlogs")
                 .setDescription("Disable Conflict Guard logging")
-        )
+        ),
+
+    new SlashCommandBuilder()
+        .setName("sendportal")
+        .setDescription("Send the Room 7 portal advertisement")
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
 ];
 
 
@@ -3010,7 +3016,50 @@ Beloved now pronounces you chronically online and chronically online.
 
         const command = interaction.commandName;
 
-        if (command === "beef") {
+        
+
+        if (command === "sendportal") {
+            if (!interaction.inGuild()) {
+                return interaction.reply({ content: "This command can only be used inside a server.", ephemeral: true });
+            }
+
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+                return interaction.reply({
+                    content: "❌ You need the **Manage Server** permission to use this command.",
+                    ephemeral: true
+                });
+            }
+
+            const portalEmbed = new EmbedBuilder()
+                .setColor(0xFF69B4)
+                .setTitle("🌸 ROOM 7")
+                .setDescription([
+                    "> **A chill community for making friends, chatting and hanging out.**",
+                    "",
+                    "💬 Active chats",
+                    "🎙️ Voice chats",
+                    "🎉 Events & giveaways",
+                    "🎨 Self roles & colours",
+                    "❓ Daily QOTD",
+                    "🤝 Friendly staff",
+                    "",
+                    "https://discord.gg/room7"
+                ].join("\n"))
+                .setImage("https://cdn.discordapp.com/attachments/1513363400292438248/1531114037931147385/ChatGPT_Image_Jul_27_2026_01_57_40_AM.png?ex=6a680891&is=6a66b711&hm=462f30d56244aac25219ab9d1698ce9913dc6cf2a4b8eeeda776a0e8982bf4ab")
+                .setFooter({ text: "Room 7 • Your place. Our people." });
+
+            await interaction.channel.send({
+                content: "@here",
+                embeds: [portalEmbed],
+                allowedMentions: { parse: ["everyone"] }
+            });
+
+            return interaction.reply({
+                content: "✅ Room 7 portal advertisement sent.",
+                ephemeral: true
+            });
+        }
+if (command === "beef") {
             if (!interaction.inGuild()) {
                 return interaction.reply({ content: "Beef mode only works inside a server.", ephemeral: true });
             }
