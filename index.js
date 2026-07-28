@@ -2636,6 +2636,18 @@ const commands = [
         ),
 
     new SlashCommandBuilder()
+        .setName("say")
+        .setDescription("Make the bot send a message")
+        .addStringOption(option =>
+            option
+                .setName("message")
+                .setDescription("What the bot should say")
+                .setRequired(true)
+                .setMaxLength(2000)
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+    new SlashCommandBuilder()
         .setName("sendportal")
         .setDescription("Send the Room 7 portal advertisement")
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
@@ -3017,6 +3029,38 @@ Beloved now pronounces you chronically online and chronically online.
         const command = interaction.commandName;
 
         
+
+        if (command === "say") {
+            if (!interaction.inGuild() || !interaction.channel?.isTextBased()) {
+                return interaction.reply({
+                    content: "❌ This command can only be used in a server text channel.",
+                    ephemeral: true
+                });
+            }
+
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+                return interaction.reply({
+                    content: "❌ You need the **Manage Messages** permission to use this command.",
+                    ephemeral: true
+                });
+            }
+
+            const message = interaction.options.getString("message", true);
+
+            await interaction.deferReply({ ephemeral: true });
+
+            try {
+                await interaction.channel.send({
+                    content: message,
+                    allowedMentions: { parse: [] }
+                });
+
+                return interaction.editReply("✅ Message sent. Only you can see this confirmation.");
+            } catch (error) {
+                console.error("Say command failed:", error);
+                return interaction.editReply("❌ I could not send that message. Check my channel permissions.");
+            }
+        }
 
         if (command === "sendportal") {
             if (!interaction.inGuild()) {
