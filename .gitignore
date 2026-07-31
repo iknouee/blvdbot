@@ -1,2 +1,9 @@
 node_modules/
 .env
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Legacy JSON data files
+beloved-*.json
