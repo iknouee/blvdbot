@@ -3,27 +3,36 @@ const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("tweet")
-        .setDescription("Make a funny fake tweet")
-        .addUserOption(opt => opt.setName("user").setDescription("Who is supposedly tweeting?").setRequired(true))
-        .addStringOption(opt => opt.setName("text").setDescription("What should the fake tweet say?").setRequired(true).setMaxLength(280)),
+        .setDescription("Fabricate a completely real and legitimate tweet")
+        .addUserOption(opt => opt.setName("user").setDescription("Who supposedly posted this").setRequired(true))
+        .addStringOption(opt => opt.setName("text").setDescription("The tweet content").setRequired(true).setMaxLength(280)),
 
     async execute(interaction) {
         const target = interaction.options.getUser("user");
         const text = interaction.options.getString("text");
-        const likes = Math.floor(Math.random() * 98000) + 1200;
-        const reposts = Math.floor(likes * (0.05 + Math.random() * 0.25));
-        const replies = Math.floor(likes * (0.01 + Math.random() * 0.08));
-        const handle = `@${target.username.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 15) || "blvduser"}`;
+        const likes = Math.floor(Math.random() * 198000) + 2000;
+        const reposts = Math.floor(likes * (0.05 + Math.random() * 0.3));
+        const replies = Math.floor(likes * (0.02 + Math.random() * 0.1));
+        const views = likes * (Math.floor(Math.random() * 12) + 5);
+        const handle = `@${target.username.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 15) || "user"}`;
+        const verified = Math.random() > 0.5;
+        const hour = Math.floor(Math.random() * 12) + 1;
+        const minute = Math.floor(Math.random() * 60).toString().padStart(2, "0");
+        const ampm = Math.random() > 0.5 ? "AM" : "PM";
 
-        return interaction.reply({
-            embeds: [new EmbedBuilder()
-                .setColor(0x000000)
-                .setAuthor({ name: `${target.displayName || target.username}  \u2713`, iconURL: target.displayAvatarURL({ size: 256 }) })
-                .setDescription(`**${handle}**\n\n${text}`)
-                .addFields({ name: "", value: `\u{1F4AC} ${replies.toLocaleString()}     \u{1F501} ${reposts.toLocaleString()}     \u2764\uFE0F ${likes.toLocaleString()}     \u{1F4CA} ${(likes * 8).toLocaleString()}` })
-                .setFooter({ text: "Fake Tweet \u2022 Made by Beloved" })
-                .setTimestamp()],
-            allowedMentions: { parse: [] }
-        });
+        const embed = new EmbedBuilder()
+            .setColor(0x000000)
+            .setAuthor({
+                name: `${target.globalName || target.username} ${verified ? "☑️" : ""}`,
+                iconURL: target.displayAvatarURL({ size: 256 })
+            })
+            .setDescription(`**${handle}**\n\n${text}\n\n*${hour}:${minute} ${ampm} · Translated from Unhinged*`)
+            .addFields(
+                { name: "\u200b", value: `💬 **${replies.toLocaleString()}**　　🔁 **${reposts.toLocaleString()}**　　❤️ **${likes.toLocaleString()}**　　📊 **${views.toLocaleString()}**`, inline: false }
+            )
+            .setFooter({ text: "𝕏 • This tweet is 100% fabricated by Beloved" })
+            .setTimestamp();
+
+        return interaction.reply({ embeds: [embed], allowedMentions: { parse: [] } });
     }
 };
