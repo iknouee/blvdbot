@@ -6,6 +6,11 @@ module.exports = {
 
     async execute(interaction, client) {
         try {
+            // Handle modal submissions
+            if (interaction.isModalSubmit()) {
+                return await handleModal(interaction, client);
+            }
+
             // Handle button interactions
             if (interaction.isButton()) {
                 return await handleButton(interaction, client);
@@ -80,5 +85,24 @@ async function handleButton(interaction, client) {
         const [, action, gameId] = customId.split(":");
         const countryCmd = client.commands.get("countrygame");
         if (countryCmd?.handleButton) return countryCmd.handleButton(interaction, action, gameId);
+    }
+
+    if (customId.startsWith("heist:")) {
+        const [, action, gameId] = customId.split(":");
+        const heistCmd = client.commands.get("heist");
+        if (heistCmd?.handleButton) return heistCmd.handleButton(interaction, action, gameId);
+    }
+
+    if (customId.startsWith("paranoia:")) {
+        const [, action, gameId] = customId.split(":");
+        const paranoiaCmd = client.commands.get("paranoia");
+        if (paranoiaCmd?.handleButton) return paranoiaCmd.handleButton(interaction, action, gameId);
+    }
+}
+
+async function handleModal(interaction, client) {
+    if (interaction.customId === "confess_modal") {
+        const confessCmd = client.commands.get("confess");
+        if (confessCmd?.handleModal) return confessCmd.handleModal(interaction);
     }
 }
