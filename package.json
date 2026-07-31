@@ -1,11 +1,16 @@
 {
   "name": "beloved",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Beloved - A feature-rich Discord bot with economy, games, moderation, and entertainment commands",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node index.js",
-    "deploy": "node deploy-commands.js"
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "deploy:global": "GUILD_ID= node src/deploy-commands.js",
+    "remove-commands": "node remove-commands.js"
   },
+  "keywords": ["discord", "bot", "economy", "games", "moderation"],
+  "license": "MIT",
   "dependencies": {
     "discord.js": "^14.21.0",
     "dotenv": "^17.2.1",
