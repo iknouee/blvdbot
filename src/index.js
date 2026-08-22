@@ -104,7 +104,7 @@ client.on("messageCreate", async message => {
     if (/\bpanto\b/i.test(message.content)) {
         try {
             await message.reply(
-                "panto says he misses yall 💔"
+                "bro summoned panto 😭"
             );
         } catch (error) {
             logger.error(
@@ -115,12 +115,12 @@ client.on("messageCreate", async message => {
     }
 });
 
-// ─── Panto Farewell ──────────────────────────────────────────────────────────
+// ─── Panto Return Message ────────────────────────────────────────────────────
 
 client.once("ready", async () => {
 
     logger.info(
-        "PantoFarewell",
+        "PantoReturn",
         `Bot ready as ${client.user.tag}`
     );
 
@@ -128,7 +128,7 @@ client.once("ready", async () => {
 
     if (!channelId) {
         logger.error(
-            "PantoFarewell",
+            "PantoReturn",
             "MAIN_CHAT_CHANNEL_ID is missing from environment variables."
         );
 
@@ -138,7 +138,7 @@ client.once("ready", async () => {
     try {
 
         logger.info(
-            "PantoFarewell",
+            "PantoReturn",
             `Looking for channel ${channelId}...`
         );
 
@@ -146,7 +146,7 @@ client.once("ready", async () => {
 
         if (!channel) {
             logger.error(
-                "PantoFarewell",
+                "PantoReturn",
                 "Could not find the main chat channel."
             );
 
@@ -155,7 +155,7 @@ client.once("ready", async () => {
 
         if (!channel.isTextBased()) {
             logger.error(
-                "PantoFarewell",
+                "PantoReturn",
                 "The configured channel is not a text channel."
             );
 
@@ -163,67 +163,58 @@ client.once("ready", async () => {
         }
 
         logger.info(
-            "PantoFarewell",
+            "PantoReturn",
             `Found channel #${channel.name}`
         );
 
-        // Check recent messages so a simple restart doesn't send it again.
+        // Check recent messages so restarting the bot doesn't immediately
+        // send the return message again.
         const recentMessages = await channel.messages.fetch({
             limit: 100
         });
 
         const alreadySent = recentMessages.some(message =>
             message.author.id === client.user.id &&
-            message.content.includes("a message from panto")
+            message.content.includes("panto is back. for good")
         );
 
         if (alreadySent) {
             logger.info(
-                "PantoFarewell",
-                "Farewell message has already been posted."
+                "PantoReturn",
+                "Return message has already been posted."
             );
 
             return;
         }
 
-        const farewellMessage = `**a message from panto 🤍**
+        const returnMessage = `**panto is back 🤍**
 
-panto has officially left blvd
+well that retirement lasted long 😭
 
-actually crazy saying that after everything 😭
+panto is officially back in blvd and this time hes staying
 
-he came into blvd not knowing what to expect and somehow ended up meeting some of the nicest people hes ever met. all the random vcs, staying up way too late, laughing over the dumbest stuff, helping people when they needed someone, stupid arguments and just random moments that nobody thought would actually become memories
+no dramatic leaving speech
+no disappearing
+no rip panto
 
-those are the things hes never gonna forget
+bros alive again 😭
 
-even if he never speaks to some of these people again, he'll always remember the time everyone was here together. some of you made his days better without even knowing it and blvd genuinely became a big part of his life for a while
+missed u lot tho fr
 
-it wasnt always good tho. being around these servers so much eventually started messing with his head and he knew it was probably time to leave and move on
+**panto is back. for good 🤍**`;
 
-but he doesnt regret any of it
-
-the people he met, the laughs, the memories, the late nights, all of it was worth it. one day everyones gonna move on and blvd probably wont even be the same anymore, but he'll always be able to look back at this time and remember how good we actually had it 😭
-
-so thank you to everyone who spoke to him, helped him, checked up on him, made him laugh or was just there. genuinely thank you for making these memories what they were
-
-you probably wont see panto around anymore but he definitely wont forget you lot 🤍
-
-what a fucking era man
-
-rip panto lol 🕊️`;
-
-        await channel.send(farewellMessage);
+        await channel.send(returnMessage);
 
         logger.info(
-            "PantoFarewell",
-            "✅ Panto farewell message sent!"
+            "PantoReturn",
+            "✅ Panto return message sent!"
         );
 
     } catch (error) {
 
         logger.error(
-            "PantoFarewell",
-            `Failed to send farewell message: ${error.message}`,
+            "PantoReturn",
+            `Failed to send return message: ${error.message}`,
             {
                 stack: error.stack
             }
