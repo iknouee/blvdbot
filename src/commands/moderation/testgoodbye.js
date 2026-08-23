@@ -22,16 +22,50 @@ module.exports = {
 
         if (!channelId) {
             return interaction.reply({
-                content: "❌ GOODBYE_CHANNEL_ID is not set on Render.",
+                content: "❌ GOODBYE_CHANNEL_ID isn't set on Render.",
                 ephemeral: true
             });
         }
 
-        const channel = interaction.guild.channels.cache.get(channelId);
+        const channel = await interaction.guild.channels
+            .fetch(channelId)
+            .catch(() => null);
 
-        if (!channel || !channel.isTextBased()) {
+        if (!channel) {
             return interaction.reply({
-                content: "❌ I couldn't find the goodbye channel.",
+                content: `❌ I couldn't find the goodbye channel.\nID: \`${channelId}\``,
+                ephemeral: true
+            });
+        }
+
+        if (!channel.isTextBased()) {
+            return interaction.reply({
+                content: "❌ The goodbye channel isn't a text channel.",
+                ephemeral: true
+            });
+        }
+
+        const botMember = interaction.guild.members.me;
+
+        const permissions = channel.permissionsFor(botMember);
+
+        if (!permissions?.has(PermissionFlagsBits.ViewChannel)) {
+            return interaction.reply({
+                content: "❌ I don't have **View Channel** permission in the goodbye channel.",
+                ephemeral: true
+            });
+        }
+
+        if (!permissions?.has(PermissionFlagsBits.SendMessages)) {
+            return interaction.reply({
+                content: "❌ I don't have **Send Messages** permission in the goodbye channel.",
+                ephemeral: true
+            });
+        }
+
+        if (!permissions?.has(PermissionFlagsBits.EmbedLinks)) {
+            return interaction.reply({
+                content: "❌ I don't have **Embed Links** permission in the goodbye channel.",
                 ephemeral: true
             });
         }
@@ -45,7 +79,7 @@ module.exports = {
                 .setColor("#e978a9")
                 .setTitle("someone left beloved 💔")
                 .setDescription(
-                    `**${interaction.user.username}** left the server\n\n` +
+                    `**${interaction.user.username}** left Beloved\n\n` +
                     `take care, maybe we'll see you again`
                 )
                 .setThumbnail(
@@ -67,10 +101,11 @@ module.exports = {
             );
 
         } catch (error) {
-            console.error(error);
+            console.error("TEST GOODBYE ERROR:", error);
 
             return interaction.editReply(
-                "❌ I couldn't send the goodbye test."
+                `❌ Couldn't send goodbye message.\n\n` +
+                `**Error:** \`${error.message || error}\``
             );
         }
     }
