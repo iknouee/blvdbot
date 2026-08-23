@@ -22,7 +22,7 @@ module.exports = {
 [/beloved](https://discord.gg/joinblvd)
   **𝙬𝙚𝙡𝙘𝙤𝙢𝙚 𝙩𝙤 𝙗𝙚𝙡𝙤𝙫𝙚𝙙**
        𝙖𝙘𝙩𝙞𝙫𝙚 .  𝙜𝙬𝙨 . 𝙛𝙜 . 𝙝𝙤𝙨𝙩𝙞𝙣𝙜𝙨 . 𝙨𝙤𝙘𝙞𝙖𝙡
-𝙧𝙚𝙥- <@756261049082314903> @audrey  𝙥𝙞𝙣𝙜- || @everyone @here ||
+𝙧𝙚𝙥- <@756261049082314903> <@1448513860356018247>  𝙥𝙞𝙣𝙜- || @everyone @here ||
 **join today** ↴
 || https://discord.gg/joinblvd ||`;
         
