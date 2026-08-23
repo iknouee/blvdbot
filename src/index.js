@@ -7,7 +7,8 @@ const fs = require("fs");
 const {
     Client,
     GatewayIntentBits,
-    Partials
+    Partials,
+    EmbedBuilder
 } = require("discord.js");
 
 const logger = require("./utils/logger");
@@ -93,10 +94,135 @@ for (const file of eventFiles) {
     );
 }
 
+// ─── Welcome Message ─────────────────────────────────────────────────────────
+
+client.on("guildMemberAdd", async member => {
+    try {
+        const channelId = process.env.WELCOME_CHANNEL_ID;
+
+        if (!channelId) {
+            logger.warn(
+                "Welcome",
+                "WELCOME_CHANNEL_ID is not set."
+            );
+            return;
+        }
+
+        const channel =
+            member.guild.channels.cache.get(channelId) ||
+            await member.guild.channels.fetch(channelId).catch(() => null);
+
+        if (!channel || !channel.isTextBased()) {
+            logger.warn(
+                "Welcome",
+                `Could not find welcome channel in ${member.guild.name}.`
+            );
+            return;
+        }
+
+        const welcomeImage =
+            "https://cdn.discordapp.com/attachments/1540882634568368139/1540883508845613128/C2A8B411-7B4A-48DF-A4E2-EA5F623A6D86.png?ex=6a8b9318&is=6a8a4198&hm=4e4e92bd7cf0f81515776527bf61417bad17bd30ce8a89abe839c5382d7413fd";
+
+        const embed = new EmbedBuilder()
+            .setColor("#ff8fc7")
+            .setTitle("welcome to beloved 💗")
+            .setDescription(
+                `hey ${member}, welcome to **Beloved**\n\n` +
+                `glad to have you here, make yourself at home <3`
+            )
+            .setImage(welcomeImage)
+            .setFooter({
+                text: `BLVD • member #${member.guild.memberCount}`
+            })
+            .setTimestamp();
+
+        await channel.send({
+            content: `${member}`,
+            embeds: [embed]
+        });
+
+        logger.info(
+            "Welcome",
+            `Welcomed ${member.user.tag} to ${member.guild.name}.`
+        );
+
+    } catch (error) {
+        logger.error(
+            "Welcome",
+            `Failed to send welcome message: ${error?.message || error}`,
+            {
+                stack: error?.stack
+            }
+        );
+    }
+});
+
+// ─── Goodbye Message ─────────────────────────────────────────────────────────
+
+client.on("guildMemberRemove", async member => {
+    try {
+        const channelId = process.env.GOODBYE_CHANNEL_ID;
+
+        if (!channelId) {
+            logger.warn(
+                "Goodbye",
+                "GOODBYE_CHANNEL_ID is not set."
+            );
+            return;
+        }
+
+        const channel =
+            member.guild.channels.cache.get(channelId) ||
+            await member.guild.channels.fetch(channelId).catch(() => null);
+
+        if (!channel || !channel.isTextBased()) {
+            logger.warn(
+                "Goodbye",
+                `Could not find goodbye channel in ${member.guild.name}.`
+            );
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor("#e978a9")
+            .setTitle("someone left beloved 💔")
+            .setDescription(
+                `**${member.user.username}** left the server\n\n` +
+                `take care, maybe we'll see you again`
+            )
+            .setThumbnail(
+                member.user.displayAvatarURL({
+                    size: 256
+                })
+            )
+            .setFooter({
+                text: `BLVD • ${member.guild.memberCount} members`
+            })
+            .setTimestamp();
+
+        await channel.send({
+            embeds: [embed]
+        });
+
+        logger.info(
+            "Goodbye",
+            `${member.user.tag} left ${member.guild.name}.`
+        );
+
+    } catch (error) {
+        logger.error(
+            "Goodbye",
+            `Failed to send goodbye message: ${error?.message || error}`,
+            {
+                stack: error?.stack
+            }
+        );
+    }
+});
+
 // ─── Error Handling ──────────────────────────────────────────────────────────
 
 process.on("unhandledRejection", error => {
-
     logger.error(
         "Process",
         `Unhandled promise rejection: ${error?.message || error}`,
@@ -107,7 +233,6 @@ process.on("unhandledRejection", error => {
 });
 
 process.on("uncaughtException", error => {
-
     logger.error(
         "Process",
         `Uncaught exception: ${error.message}`,
@@ -120,7 +245,6 @@ process.on("uncaughtException", error => {
 // ─── Graceful Shutdown ───────────────────────────────────────────────────────
 
 process.on("SIGINT", () => {
-
     logger.info(
         "Process",
         "Shutting down..."
@@ -133,7 +257,6 @@ process.on("SIGINT", () => {
 });
 
 process.on("SIGTERM", () => {
-
     logger.info(
         "Process",
         "Shutting down..."
