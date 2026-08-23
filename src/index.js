@@ -9,7 +9,8 @@ const {
     GatewayIntentBits,
     Partials,
     EmbedBuilder,
-    PermissionFlagsBits
+    PermissionFlagsBits,
+    Events
 } = require("discord.js");
 
 const logger = require("./utils/logger");
@@ -43,13 +44,15 @@ app.listen(process.env.PORT || 3000, () => {
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessageReactions
     ],
 
     partials: [
+        Partials.User,
+        Partials.GuildMember,
         Partials.Message,
         Partials.Channel,
         Partials.Reaction
@@ -72,32 +75,96 @@ client.categories = categories;
 
 const eventsDir = path.join(__dirname, "events");
 
-const eventFiles = fs
-    .readdirSync(eventsDir)
-    .filter(file => file.endsWith(".js"));
+if (fs.existsSync(eventsDir)) {
+    const eventFiles = fs
+        .readdirSync(eventsDir)
+        .filter(file => file.endsWith(".js"));
 
-for (const file of eventFiles) {
-    const event = require(path.join(eventsDir, file));
+    for (const file of eventFiles) {
+        try {
+            const event = require(path.join(eventsDir, file));
 
-    if (event.once) {
-        client.once(event.name, (...args) => {
-            event.execute(...args, client);
-        });
-    } else {
-        client.on(event.name, (...args) => {
-            event.execute(...args, client);
-        });
+            if (!event?.name || typeof event.execute !== "function") {
+                logger.warn(
+                    "Events",
+                    `Skipped invalid event file: ${file}`
+                );
+
+                continue;
+            }
+
+            if (event.once) {
+                client.once(event.name, (...args) => {
+                    event.execute(...args, client);
+                });
+            } else {
+                client.on(event.name, (...args) => {
+                    event.execute(...args, client);
+                });
+            }
+
+            logger.debug(
+                "Events",
+                `Registered event: ${event.name}`
+            );
+        } catch (error) {
+            logger.error(
+                "Events",
+                `Failed to load ${file}: ${error?.message || error}`
+            );
+        }
     }
-
-    logger.debug(
-        "Events",
-        `Registered event: ${event.name}`
-    );
 }
+
+// ─── Bot Ready ────────────────────────────────────────────────────────────────
+
+client.once(Events.ClientReady, readyClient => {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`✅ Logged in as ${readyClient.user.tag}`);
+    console.log(`✅ Bot ID: ${readyClient.user.id}`);
+    console.log(`✅ Connected to ${readyClient.guilds.cache.size} server(s)`);
+
+    console.log(
+        `✅ GuildMembers intent: ${
+            readyClient.options.intents.has(
+                GatewayIntentBits.GuildMembers
+            )
+                ? "ENABLED"
+                : "DISABLED"
+        }`
+    );
+
+    console.log(
+        `✅ Welcome channel env: ${
+            process.env.WELCOME_CHANNEL_ID || "NOT SET"
+        }`
+    );
+
+    console.log(
+        `✅ Goodbye channel env: ${
+            process.env.GOODBYE_CHANNEL_ID || "NOT SET"
+        }`
+    );
+
+    console.log(
+        `✅ Verify channel env: ${
+            process.env.VERIFY_CHANNEL_ID || "NOT SET"
+        }`
+    );
+
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+});
 
 // ─── Welcome Message ─────────────────────────────────────────────────────────
 
-client.on("guildMemberAdd", async member => {
+client.on(Events.GuildMemberAdd, async member => {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(
+        `👋 MEMBER JOIN EVENT: ${member.user.tag} (${member.id})`
+    );
+    console.log(`🏠 Server: ${member.guild.name}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
     try {
         const channelId = process.env.WELCOME_CHANNEL_ID;
         const verifyChannelId = process.env.VERIFY_CHANNEL_ID;
@@ -107,18 +174,22 @@ client.on("guildMemberAdd", async member => {
                 "Welcome",
                 "WELCOME_CHANNEL_ID is not set."
             );
+
             return;
         }
 
         const channel =
             member.guild.channels.cache.get(channelId) ||
-            await member.guild.channels.fetch(channelId).catch(() => null);
+            await member.guild.channels
+                .fetch(channelId)
+                .catch(() => null);
 
         if (!channel || !channel.isTextBased()) {
             logger.warn(
                 "Welcome",
-                `Could not find welcome channel in ${member.guild.name}.`
+                `Could not find welcome channel ${channelId} in ${member.guild.name}.`
             );
+
             return;
         }
 
@@ -161,7 +232,15 @@ client.on("guildMemberAdd", async member => {
             `Welcomed ${member.user.tag} to ${member.guild.name}.`
         );
 
+        console.log(
+            `✅ Welcome message sent for ${member.user.tag}`
+        );
     } catch (error) {
+        console.error(
+            "❌ WELCOME ERROR:",
+            error
+        );
+
         logger.error(
             "Welcome",
             `Failed to send welcome message: ${error?.message || error}`,
@@ -174,7 +253,7 @@ client.on("guildMemberAdd", async member => {
 
 // ─── Verification System ─────────────────────────────────────────────────────
 
-client.on("messageCreate", async message => {
+client.on(Events.MessageCreate, async message => {
     try {
         // Ignore bots
         if (message.author.bot) return;
@@ -189,17 +268,17 @@ client.on("messageCreate", async message => {
             return;
         }
 
-        // Only run in the verification channel
+        // Only run in verification channel
         if (message.channel.id !== verifyChannelId) {
             return;
         }
 
-        // Save the message content before deleting it
+        // Save content before deleting
         const content = message.content
             .trim()
             .toLowerCase();
 
-        // Delete EVERYTHING users send in the verification channel
+        // Delete EVERYTHING users send in verification channel
         await message.delete().catch(error => {
             logger.warn(
                 "Verification",
@@ -207,7 +286,7 @@ client.on("messageCreate", async message => {
             );
         });
 
-        // Anything except exactly "verify" gets deleted and ignored
+        // Anything except "verify" gets deleted and ignored
         if (content !== "verify") {
             return;
         }
@@ -238,13 +317,18 @@ client.on("messageCreate", async message => {
         // ─── Already Verified ────────────────────────────────────────────────
 
         if (member.roles.cache.has(verifiedRoleId)) {
-            const alreadyVerified = await message.channel.send({
-                content: `✅ ${member}, you're already verified.`
-            }).catch(() => null);
+            const alreadyVerified = await message.channel
+                .send({
+                    content:
+                        `✅ ${member}, you're already verified.`
+                })
+                .catch(() => null);
 
             if (alreadyVerified) {
                 setTimeout(() => {
-                    alreadyVerified.delete().catch(() => null);
+                    alreadyVerified
+                        .delete()
+                        .catch(() => null);
                 }, 5000);
             }
 
@@ -274,21 +358,25 @@ client.on("messageCreate", async message => {
                 "Bot does not have Manage Roles permission."
             );
 
-            const errorMessage = await message.channel.send({
-                content:
-                    `❌ ${member}, verification isn't working right now. Please let staff know.`
-            }).catch(() => null);
+            const errorMessage = await message.channel
+                .send({
+                    content:
+                        `❌ ${member}, verification isn't working right now. Please let staff know.`
+                })
+                .catch(() => null);
 
             if (errorMessage) {
                 setTimeout(() => {
-                    errorMessage.delete().catch(() => null);
+                    errorMessage
+                        .delete()
+                        .catch(() => null);
                 }, 5000);
             }
 
             return;
         }
 
-        // ─── Check Role Position ──────────────────────────────────────────────
+        // ─── Check Role Position ─────────────────────────────────────────────
 
         if (
             verifiedRole.position >=
@@ -299,14 +387,18 @@ client.on("messageCreate", async message => {
                 "Verified role is above or equal to the bot's highest role."
             );
 
-            const errorMessage = await message.channel.send({
-                content:
-                    `❌ ${member}, I couldn't verify you. Please let staff know.`
-            }).catch(() => null);
+            const errorMessage = await message.channel
+                .send({
+                    content:
+                        `❌ ${member}, I couldn't verify you. Please let staff know.`
+                })
+                .catch(() => null);
 
             if (errorMessage) {
                 setTimeout(() => {
-                    errorMessage.delete().catch(() => null);
+                    errorMessage
+                        .delete()
+                        .catch(() => null);
                 }, 5000);
             }
 
@@ -322,15 +414,18 @@ client.on("messageCreate", async message => {
 
         // ─── Success Message ─────────────────────────────────────────────────
 
-        const successMessage = await message.channel.send({
-            content:
-                `✅ ${member}, you're verified! welcome to **Beloved** 🖤`
-        }).catch(() => null);
+        const successMessage = await message.channel
+            .send({
+                content:
+                    `✅ ${member}, you're verified! welcome to **Beloved** 🖤`
+            })
+            .catch(() => null);
 
-        // Delete success message after 5 seconds
         if (successMessage) {
             setTimeout(() => {
-                successMessage.delete().catch(() => null);
+                successMessage
+                    .delete()
+                    .catch(() => null);
             }, 5000);
         }
 
@@ -338,7 +433,6 @@ client.on("messageCreate", async message => {
             "Verification",
             `Verified ${member.user.tag}.`
         );
-
     } catch (error) {
         logger.error(
             "Verification",
@@ -352,7 +446,14 @@ client.on("messageCreate", async message => {
 
 // ─── Goodbye Message ─────────────────────────────────────────────────────────
 
-client.on("guildMemberRemove", async member => {
+client.on(Events.GuildMemberRemove, async member => {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(
+        `💔 MEMBER LEAVE EVENT: ${member.user.tag} (${member.id})`
+    );
+    console.log(`🏠 Server: ${member.guild.name}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
     try {
         const channelId = process.env.GOODBYE_CHANNEL_ID;
 
@@ -361,18 +462,22 @@ client.on("guildMemberRemove", async member => {
                 "Goodbye",
                 "GOODBYE_CHANNEL_ID is not set."
             );
+
             return;
         }
 
         const channel =
             member.guild.channels.cache.get(channelId) ||
-            await member.guild.channels.fetch(channelId).catch(() => null);
+            await member.guild.channels
+                .fetch(channelId)
+                .catch(() => null);
 
         if (!channel || !channel.isTextBased()) {
             logger.warn(
                 "Goodbye",
-                `Could not find goodbye channel in ${member.guild.name}.`
+                `Could not find goodbye channel ${channelId} in ${member.guild.name}.`
             );
+
             return;
         }
 
@@ -402,7 +507,15 @@ client.on("guildMemberRemove", async member => {
             `${member.user.tag} left ${member.guild.name}.`
         );
 
+        console.log(
+            `✅ Goodbye message sent for ${member.user.tag}`
+        );
     } catch (error) {
+        console.error(
+            "❌ GOODBYE ERROR:",
+            error
+        );
+
         logger.error(
             "Goodbye",
             `Failed to send goodbye message: ${error?.message || error}`,
@@ -413,7 +526,23 @@ client.on("guildMemberRemove", async member => {
     }
 });
 
-// ─── Error Handling ──────────────────────────────────────────────────────────
+// ─── Discord Client Errors ───────────────────────────────────────────────────
+
+client.on(Events.Error, error => {
+    console.error(
+        "❌ Discord client error:",
+        error
+    );
+});
+
+client.on("warn", warning => {
+    console.warn(
+        "⚠️ Discord warning:",
+        warning
+    );
+});
+
+// ─── Process Error Handling ──────────────────────────────────────────────────
 
 process.on("unhandledRejection", error => {
     logger.error(
@@ -422,6 +551,11 @@ process.on("unhandledRejection", error => {
         {
             stack: error?.stack
         }
+    );
+
+    console.error(
+        "❌ Unhandled rejection:",
+        error
     );
 });
 
@@ -432,6 +566,11 @@ process.on("uncaughtException", error => {
         {
             stack: error.stack
         }
+    );
+
+    console.error(
+        "❌ Uncaught exception:",
+        error
     );
 });
 
