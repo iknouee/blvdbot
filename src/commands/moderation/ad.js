@@ -24,8 +24,8 @@ module.exports = {
        𝙖𝙘𝙩𝙞𝙫𝙚 .  𝙜𝙬𝙨 . 𝙛𝙜 . 𝙝𝙤𝙨𝙩𝙞𝙣𝙜𝙨 . 𝙨𝙤𝙘𝙞𝙖𝙡
 𝙧𝙚𝙥- <@756261049082314903> @audrey  𝙥𝙞𝙣𝙜- || @everyone @here ||
 **join today** ↴
-https://discord.gg/joinblvd`;
-
+|| https://discord.gg/joinblvd ||`;
+        
         try {
             await interaction.channel.send({
                 content: ad,
