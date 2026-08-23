@@ -8,7 +8,8 @@ const {
     Client,
     GatewayIntentBits,
     Partials,
-    EmbedBuilder
+    EmbedBuilder,
+    PermissionFlagsBits
 } = require("discord.js");
 
 const logger = require("./utils/logger");
@@ -123,14 +124,17 @@ client.on("guildMemberAdd", async member => {
         const welcomeImage =
             "https://cdn.discordapp.com/attachments/1540882634568368139/1540883508845613128/C2A8B411-7B4A-48DF-A4E2-EA5F623A6D86.png?ex=6a8b9318&is=6a8a4198&hm=4e4e92bd7cf0f81515776527bf61417bad17bd30ce8a89abe839c5382d7413fd";
 
+        const verifyChannelId =
+            process.env.VERIFY_CHANNEL_ID || "1499900580431396987";
+
         const embed = new EmbedBuilder()
             .setColor("#000000")
             .setTitle("welcome to beloved 🖤")
             .setDescription(
                 `hey ${member}, welcome to **Beloved**\n\n` +
-                `before you get started, make sure you verify so you can access the server.\n\n` +
-                `go to <#1499900580431396987> and type **verify**\n\n` +
-                `welcome to BLVD <3`
+                `before you can access the server you'll need to verify.\n\n` +
+                `head over to <#${verifyChannelId}> and type **verify**\n\n` +
+                `once you're verified you'll get access to the rest of BLVD <3`
             )
             .setImage(welcomeImage)
             .setFooter({
@@ -152,6 +156,136 @@ client.on("guildMemberAdd", async member => {
         logger.error(
             "Welcome",
             `Failed to send welcome message: ${error?.message || error}`,
+            {
+                stack: error?.stack
+            }
+        );
+    }
+});
+
+// ─── Verification System ─────────────────────────────────────────────────────
+
+client.on("messageCreate", async message => {
+    try {
+        // Ignore bots and DMs
+        if (message.author.bot) return;
+        if (!message.guild) return;
+
+        const verifyChannelId = process.env.VERIFY_CHANNEL_ID;
+        const verifiedRoleId = process.env.VERIFIED_ROLE_ID;
+
+        if (!verifyChannelId || !verifiedRoleId) {
+            return;
+        }
+
+        // Only work inside the verify channel
+        if (message.channel.id !== verifyChannelId) {
+            return;
+        }
+
+        // Delete messages in the verify channel that aren't "verify"
+        if (message.content.trim().toLowerCase() !== "verify") {
+            await message.delete().catch(() => null);
+            return;
+        }
+
+        // Delete their "verify" message
+        await message.delete().catch(() => null);
+
+        const member = message.member;
+
+        if (!member) return;
+
+        const verifiedRole =
+            message.guild.roles.cache.get(verifiedRoleId) ||
+            await message.guild.roles.fetch(verifiedRoleId).catch(() => null);
+
+        if (!verifiedRole) {
+            logger.warn(
+                "Verification",
+                `Verified role ${verifiedRoleId} could not be found.`
+            );
+            return;
+        }
+
+        // Already verified
+        if (member.roles.cache.has(verifiedRoleId)) {
+            const alreadyVerified = await message.channel.send({
+                content: `✅ ${member}, you're already verified.`
+            }).catch(() => null);
+
+            if (alreadyVerified) {
+                setTimeout(() => {
+                    alreadyVerified.delete().catch(() => null);
+                }, 5000);
+            }
+
+            return;
+        }
+
+        // Check bot permissions
+        const botMember = message.guild.members.me;
+
+        if (
+            !botMember ||
+            !botMember.permissions.has(PermissionFlagsBits.ManageRoles)
+        ) {
+            logger.warn(
+                "Verification",
+                "Bot does not have Manage Roles permission."
+            );
+            return;
+        }
+
+        // Make sure the Verified role is below the bot's highest role
+        if (
+            verifiedRole.position >= botMember.roles.highest.position
+        ) {
+            logger.warn(
+                "Verification",
+                "Verified role is above or equal to the bot's highest role."
+            );
+
+            const errorMessage = await message.channel.send({
+                content:
+                    `❌ ${member}, I couldn't verify you. Please let staff know.`
+            }).catch(() => null);
+
+            if (errorMessage) {
+                setTimeout(() => {
+                    errorMessage.delete().catch(() => null);
+                }, 5000);
+            }
+
+            return;
+        }
+
+        // Give Verified role
+        await member.roles.add(
+            verifiedRole,
+            "Beloved verification"
+        );
+
+        const successMessage = await message.channel.send({
+            content:
+                `✅ ${member} you're verified, welcome to **Beloved** 🖤`
+        }).catch(() => null);
+
+        if (successMessage) {
+            setTimeout(() => {
+                successMessage.delete().catch(() => null);
+            }, 5000);
+        }
+
+        logger.info(
+            "Verification",
+            `Verified ${member.user.tag}.`
+        );
+
+    } catch (error) {
+        logger.error(
+            "Verification",
+            `Verification error: ${error?.message || error}`,
             {
                 stack: error?.stack
             }
