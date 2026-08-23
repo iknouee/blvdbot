@@ -124,11 +124,13 @@ client.on("guildMemberAdd", async member => {
             "https://cdn.discordapp.com/attachments/1540882634568368139/1540883508845613128/C2A8B411-7B4A-48DF-A4E2-EA5F623A6D86.png?ex=6a8b9318&is=6a8a4198&hm=4e4e92bd7cf0f81515776527bf61417bad17bd30ce8a89abe839c5382d7413fd";
 
         const embed = new EmbedBuilder()
-            .setColor("#ff8fc7")
-            .setTitle("welcome to beloved 💗")
+            .setColor("#000000")
+            .setTitle("welcome to beloved 🖤")
             .setDescription(
                 `hey ${member}, welcome to **Beloved**\n\n` +
-                `glad to have you here, make yourself at home <3`
+                `before you get started, make sure you verify so you can access the server.\n\n` +
+                `go to <#1499900580431396987> and type **verify**\n\n` +
+                `welcome to BLVD <3`
             )
             .setImage(welcomeImage)
             .setFooter({
@@ -184,7 +186,7 @@ client.on("guildMemberRemove", async member => {
         }
 
         const embed = new EmbedBuilder()
-            .setColor("#e978a9")
+            .setColor("#000000")
             .setTitle("someone left beloved 💔")
             .setDescription(
                 `**${member.user.username}** left the server\n\n` +
