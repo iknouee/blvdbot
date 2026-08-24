@@ -98,6 +98,12 @@ async function handleButton(interaction, client) {
         const paranoiaCmd = client.commands.get("paranoia");
         if (paranoiaCmd?.handleButton) return paranoiaCmd.handleButton(interaction, action, gameId);
     }
+
+    if (customId.startsWith("adopt:")) {
+        const [, choice, gameId] = customId.split(":");
+        const adoptCmd = client.commands.get("adopt");
+        if (adoptCmd?.handleButton) return adoptCmd.handleButton(interaction, choice, gameId);
+    }
 }
 
 async function handleModal(interaction, client) {

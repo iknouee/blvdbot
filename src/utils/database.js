@@ -7,6 +7,7 @@ const ECONOMY_FILE = path.join(DATA_DIR, "economy.json");
 const BLACKLIST_FILE = path.join(DATA_DIR, "blacklist.json");
 const MARRIAGES_FILE = path.join(DATA_DIR, "marriages.json");
 const CONFLICT_FILE = path.join(DATA_DIR, "conflict.json");
+const FAMILY_FILE = path.join(DATA_DIR, "family.json");
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -52,6 +53,7 @@ const economyData = loadJson(ECONOMY_FILE, { users: {} });
 const blacklistData = loadJson(BLACKLIST_FILE, { guilds: {} });
 const marriageData = loadJson(MARRIAGES_FILE, { guilds: {} });
 const conflictData = loadJson(CONFLICT_FILE, { guilds: {} });
+const familyData = loadJson(FAMILY_FILE, { guilds: {} });
 
 logger.info("Database", "Data stores loaded");
 
@@ -161,6 +163,127 @@ function removeMarriage(guildId, userId) {
     return m;
 }
 
+// ─── Family Tree ─────────────────────────────────────────────────────────────
+
+function getFamilyMember(guildId, userId) {
+    const guild = familyData.guilds[guildId];
+    if (!guild) return null;
+    return guild[userId] || null;
+}
+
+function ensureFamilyMember(guildId, userId) {
+    if (!familyData.guilds[guildId]) familyData.guilds[guildId] = {};
+    if (!familyData.guilds[guildId][userId]) {
+        familyData.guilds[guildId][userId] = {
+            parent_id: null,
+            children: [],
+            adopted_at: null
+        };
+    }
+    return familyData.guilds[guildId][userId];
+}
+
+function createAdoption(guildId, parentId, childId) {
+    const parent = ensureFamilyMember(guildId, parentId);
+    const child = ensureFamilyMember(guildId, childId);
+    const now = Date.now();
+
+    child.parent_id = parentId;
+    child.adopted_at = now;
+    if (!parent.children.includes(childId)) {
+        parent.children.push(childId);
+    }
+
+    debouncedSave(FAMILY_FILE, familyData);
+    return now;
+}
+
+function removeAdoption(guildId, parentId, childId) {
+    const guild = familyData.guilds[guildId];
+    if (!guild) return null;
+
+    const parent = guild[parentId];
+    const child = guild[childId];
+
+    if (!parent || !child) return null;
+    if (child.parent_id !== parentId) return null;
+
+    // Remove child from parent's children array
+    parent.children = parent.children.filter(id => id !== childId);
+
+    // Clear child's parent reference
+    child.parent_id = null;
+    child.adopted_at = null;
+
+    debouncedSave(FAMILY_FILE, familyData);
+    return { parentId, childId };
+}
+
+function getChildren(guildId, userId) {
+    const member = getFamilyMember(guildId, userId);
+    if (!member) return [];
+    return member.children || [];
+}
+
+function getParent(guildId, userId) {
+    const member = getFamilyMember(guildId, userId);
+    if (!member) return null;
+    return member.parent_id;
+}
+
+function getFullFamily(guildId, userId) {
+    // Build the complete family tree starting from the root ancestor
+    const rootId = findRootAncestor(guildId, userId);
+    return buildFamilyTree(guildId, rootId);
+}
+
+function findRootAncestor(guildId, userId) {
+    const visited = new Set();
+    let current = userId;
+    while (true) {
+        if (visited.has(current)) break; // prevent infinite loops
+        visited.add(current);
+        const member = getFamilyMember(guildId, current);
+        if (!member || !member.parent_id) break;
+        current = member.parent_id;
+    }
+    return current;
+}
+
+function buildFamilyTree(guildId, rootId) {
+    const tree = {
+        id: rootId,
+        children: []
+    };
+
+    const member = getFamilyMember(guildId, rootId);
+    if (member && member.children) {
+        for (const childId of member.children) {
+            tree.children.push(buildFamilyTree(guildId, childId));
+        }
+    }
+
+    return tree;
+}
+
+function getAllFamilyMembers(guildId, userId) {
+    // Get all user IDs in the same family tree
+    const rootId = findRootAncestor(guildId, userId);
+    const members = new Set();
+    collectMembers(guildId, rootId, members);
+    return [...members];
+}
+
+function collectMembers(guildId, userId, members) {
+    members.add(userId);
+    const member = getFamilyMember(guildId, userId);
+    if (member && member.children) {
+        for (const childId of member.children) {
+            collectMembers(guildId, childId, members);
+        }
+    }
+}
+
 // ─── Conflict Settings ──────────────────────────────────────────────────────────
 
 const DEFAULT_CONFLICT_SETTINGS = {
@@ -198,6 +321,7 @@ function closeDatabase() {
     saveJson(BLACKLIST_FILE, blacklistData);
     saveJson(MARRIAGES_FILE, marriageData);
     saveJson(CONFLICT_FILE, conflictData);
+    saveJson(FAMILY_FILE, familyData);
     logger.info("Database", "All data flushed to disk");
 }
 
@@ -214,6 +338,15 @@ module.exports = {
     createMarriage,
     updateMarriage,
     removeMarriage,
+    getFamilyMember,
+    ensureFamilyMember,
+    createAdoption,
+    removeAdoption,
+    getChildren,
+    getParent,
+    getFullFamily,
+    findRootAncestor,
+    getAllFamilyMembers,
     getConflictSettings,
     updateConflictSettings,
     DEFAULT_CONFLICT_SETTINGS,
