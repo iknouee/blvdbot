@@ -73,8 +73,13 @@ module.exports = {
             }
         }
 
+        // Clean up any stale/ended adoption requests before checking
+        for (const [id, g] of activeAdoptions) {
+            if (g.ended) activeAdoptions.delete(id);
+        }
+
         // Check no pending adoption involving this user
-        const pending = [...activeAdoptions.values()].some(g => !g.ended && [g.parentId, g.childId].includes(parentId));
+        const pending = [...activeAdoptions.values()].some(g => [g.parentId, g.childId].includes(parentId));
         if (pending) {
             return interaction.reply({ content: "⏳ You already have a pending adoption request.", ephemeral: true });
         }
@@ -111,9 +116,10 @@ module.exports = {
             return interaction.reply({ content: "🚫 This adoption request isn't for you.", ephemeral: true });
         }
 
+        // Immediately mark as ended and remove from map
         game.ended = true;
         activeAdoptions.delete(gameId);
-        clearTimeout(game.timer);
+        if (game.timer) clearTimeout(game.timer);
 
         let result;
         if (choice === "accept") {
