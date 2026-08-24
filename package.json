@@ -12,6 +12,7 @@
   "keywords": ["discord", "bot", "economy", "games", "moderation"],
   "license": "MIT",
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.63",
     "discord.js": "^14.21.0",
     "dotenv": "^17.2.1",
     "express": "^5.1.0"
