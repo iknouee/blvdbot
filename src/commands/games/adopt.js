@@ -4,6 +4,7 @@ const family = require("../../systems/family");
 
 const activeAdoptions = new Map();
 const MAX_CHILDREN = 10;
+const ADOPTION_TIMEOUT = 60_000;
 
 function adoptButtons(gameId, disabled = false) {
     return new ActionRowBuilder().addComponents(
@@ -19,6 +20,20 @@ function adoptEmbed(game, result = null) {
             `${result || "Will they accept this totally normal Discord family arrangement?"}`
         )
         .setFooter({ text: result ? "Beloved has witnessed this family moment." : "Only the target user can respond." });
+}
+
+/**
+ * Remove expired/stale entries from the map.
+ * Any entry older than ADOPTION_TIMEOUT is considered dead.
+ */
+function cleanupStaleAdoptions() {
+    const now = Date.now();
+    for (const [id, g] of activeAdoptions) {
+        if (g.ended || (now - g.createdAt) > ADOPTION_TIMEOUT + 5000) {
+            if (g.timer) clearTimeout(g.timer);
+            activeAdoptions.delete(id);
+        }
+    }
 }
 
 module.exports = {
@@ -58,7 +73,6 @@ module.exports = {
         // Check for circular adoption (can't adopt your own ancestor)
         const allMembers = family.getAllMembers(guildId, parentId);
         if (allMembers.includes(childId)) {
-            // Check if childId is an ancestor of parentId
             let current = parentId;
             let isAncestor = false;
             const visited = new Set();
@@ -73,10 +87,8 @@ module.exports = {
             }
         }
 
-        // Clean up any stale/ended adoption requests before checking
-        for (const [id, g] of activeAdoptions) {
-            if (g.ended) activeAdoptions.delete(id);
-        }
+        // Aggressively clean up any stale/expired adoptions
+        cleanupStaleAdoptions();
 
         // Check no pending adoption involving this user
         const pending = [...activeAdoptions.values()].some(g => [g.parentId, g.childId].includes(parentId));
@@ -86,7 +98,7 @@ module.exports = {
 
         // Create adoption request
         const gameId = interaction.id;
-        const game = { parentId, childId, ended: false, timer: null };
+        const game = { parentId, childId, ended: false, timer: null, createdAt: Date.now() };
         activeAdoptions.set(gameId, game);
 
         await interaction.reply({
@@ -96,15 +108,15 @@ module.exports = {
         });
 
         // Timeout after 60 seconds
-        game.timer = setTimeout(async () => {
+        game.timer = setTimeout(() => {
             if (!activeAdoptions.has(gameId)) return;
             game.ended = true;
             activeAdoptions.delete(gameId);
-            await interaction.editReply({
+            interaction.editReply({
                 embeds: [adoptEmbed(game, `⏰ <@${game.childId}> didn't respond. The adoption papers have expired.`)],
                 components: [adoptButtons(gameId, true)]
             }).catch(() => {});
-        }, 60_000);
+        }, ADOPTION_TIMEOUT);
     },
 
     async handleButton(interaction, choice, gameId) {
@@ -123,7 +135,6 @@ module.exports = {
 
         let result;
         if (choice === "accept") {
-            // Double-check the child still doesn't have a parent
             const existingParent = family.getParent(interaction.guildId, game.childId);
             if (existingParent) {
                 result = `❌ <@${game.childId}> was already adopted by someone else!`;
