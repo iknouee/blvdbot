@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require("discord.js");
 const { belovedEmbed, errorEmbed } = require("../../utils/embeds");
 const family = require("../../systems/family");
 
@@ -45,6 +45,9 @@ module.exports = {
     activeAdoptions,
 
     async execute(interaction) {
+        // Defer immediately to avoid "Unknown interaction" timeout
+        await interaction.deferReply();
+
         const target = interaction.options.getUser("user");
         const guildId = interaction.guild.id;
         const parentId = interaction.user.id;
@@ -52,22 +55,22 @@ module.exports = {
 
         // Validation checks
         if (target.bot) {
-            return interaction.reply({ content: "🤖 Bots don't need parents... or do they?", ephemeral: true });
+            return interaction.editReply({ content: "🤖 Bots don't need parents... or do they?" });
         }
         if (childId === parentId) {
-            return interaction.reply({ content: "🪞 You can't adopt yourself. That's not how families work.", ephemeral: true });
+            return interaction.editReply({ content: "🪞 You can't adopt yourself. That's not how families work." });
         }
 
         // Check if target already has a parent
         const existingParent = family.getParent(guildId, childId);
         if (existingParent) {
-            return interaction.reply({ content: `❌ <@${childId}> already has a parent (<@${existingParent}>). They must be disowned first.`, ephemeral: true });
+            return interaction.editReply({ content: `❌ <@${childId}> already has a parent (<@${existingParent}>). They must be disowned first.` });
         }
 
         // Check if parent has too many children
         const currentChildren = family.getChildren(guildId, parentId);
         if (currentChildren.length >= MAX_CHILDREN) {
-            return interaction.reply({ content: `❌ You already have ${MAX_CHILDREN} children! That's the maximum.`, ephemeral: true });
+            return interaction.editReply({ content: `❌ You already have ${MAX_CHILDREN} children! That's the maximum.` });
         }
 
         // Check for circular adoption (can't adopt your own ancestor)
@@ -83,7 +86,7 @@ module.exports = {
                 current = family.getParent(guildId, current);
             }
             if (isAncestor) {
-                return interaction.reply({ content: "🔄 You can't adopt your own ancestor! That would break the space-time continuum.", ephemeral: true });
+                return interaction.editReply({ content: "🔄 You can't adopt your own ancestor! That would break the space-time continuum." });
             }
         }
 
@@ -93,7 +96,7 @@ module.exports = {
         // Check no pending adoption involving this user
         const pending = [...activeAdoptions.values()].some(g => [g.parentId, g.childId].includes(parentId));
         if (pending) {
-            return interaction.reply({ content: "⏳ You already have a pending adoption request.", ephemeral: true });
+            return interaction.editReply({ content: "⏳ You already have a pending adoption request." });
         }
 
         // Create adoption request
@@ -101,7 +104,7 @@ module.exports = {
         const game = { parentId, childId, ended: false, timer: null, createdAt: Date.now() };
         activeAdoptions.set(gameId, game);
 
-        await interaction.reply({
+        await interaction.editReply({
             embeds: [adoptEmbed(game)],
             components: [adoptButtons(gameId)],
             allowedMentions: { users: [childId, parentId] }
@@ -122,10 +125,10 @@ module.exports = {
     async handleButton(interaction, choice, gameId) {
         const game = activeAdoptions.get(gameId);
         if (!game || game.ended) {
-            return interaction.reply({ content: "This adoption request has already ended.", ephemeral: true });
+            return interaction.reply({ content: "This adoption request has already ended.", flags: MessageFlags.Ephemeral });
         }
         if (interaction.user.id !== game.childId) {
-            return interaction.reply({ content: "🚫 This adoption request isn't for you.", ephemeral: true });
+            return interaction.reply({ content: "🚫 This adoption request isn't for you.", flags: MessageFlags.Ephemeral });
         }
 
         // Immediately mark as ended and remove from map
