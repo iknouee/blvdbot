@@ -24,9 +24,15 @@ const BORDER_RADIUS = 12;
 
 /**
  * Build a layout tree with positions for each node.
- * Each node: { id, username, spouse: { id, username } | null, children: [...], x, y, width }
+ * Uses a visited set to prevent infinite loops when spouse is also a child.
  */
-function buildLayoutTree(guildId, rootId, guild, memberCache) {
+function buildLayoutTree(guildId, rootId, memberCache, visited = new Set()) {
+    // Prevent infinite recursion
+    if (visited.has(rootId)) {
+        return null;
+    }
+    visited.add(rootId);
+
     const node = {
         id: rootId,
         username: memberCache.get(rootId) || "Unknown",
@@ -38,17 +44,19 @@ function buildLayoutTree(guildId, rootId, guild, memberCache) {
     };
 
     // Check for spouse (marriage)
-    const marriageData = marriage.get(guildId, rootId);
-    if (marriageData) {
+    const marriageRecord = marriage.get(guildId, rootId);
+    if (marriageRecord && !visited.has(marriageRecord.partner_id)) {
         node.spouse = {
-            id: marriageData.partner_id,
-            username: memberCache.get(marriageData.partner_id) || "Unknown"
+            id: marriageRecord.partner_id,
+            username: memberCache.get(marriageRecord.partner_id) || "Unknown"
         };
         node.width = NODE_WIDTH * 2 + COUPLE_GAP;
+        // Mark spouse as visited so they don't appear as a separate child node
+        visited.add(marriageRecord.partner_id);
     }
 
     // Get children from family system
-    const children = family.getChildren(guildId, rootId);
+    const children = [...family.getChildren(guildId, rootId)];
 
     // Also include spouse's children if they have any
     if (node.spouse) {
@@ -58,11 +66,71 @@ function buildLayoutTree(guildId, rootId, guild, memberCache) {
         }
     }
 
+    // Build child nodes (skip already-visited to prevent loops)
     for (const childId of children) {
-        node.children.push(buildLayoutTree(guildId, childId, guild, memberCache));
+        const childNode = buildLayoutTree(guildId, childId, memberCache, visited);
+        if (childNode) {
+            node.children.push(childNode);
+        }
     }
 
     return node;
+}
+
+/**
+ * Find the true root of the family — considers both family tree AND marriage links.
+ * Goes up parent_id chain, then checks if the root's spouse has a higher ancestor.
+ */
+function findFamilyRoot(guildId, userId) {
+    // First find root via parent_id chain
+    const rootId = family.findRoot(guildId, userId);
+
+    // Check if root's spouse has a parent (meaning the spouse's family goes higher)
+    const marriageRecord = marriage.get(guildId, rootId);
+    if (marriageRecord) {
+        const spouseRoot = family.findRoot(guildId, marriageRecord.partner_id);
+        // If the spouse has a parent (i.e. their root is different from themselves),
+        // use the spouse's root instead
+        const spouseMember = family.getMember(guildId, marriageRecord.partner_id);
+        if (spouseMember && spouseMember.parent_id) {
+            return spouseRoot;
+        }
+    }
+
+    return rootId;
+}
+
+/**
+ * Collect ALL member IDs in the family tree (including spouses).
+ */
+function collectAllFamilyIds(guildId, rootId) {
+    const ids = new Set();
+    const queue = [rootId];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        if (ids.has(current)) continue;
+        ids.add(current);
+
+        // Add children
+        const children = family.getChildren(guildId, current);
+        for (const childId of children) {
+            if (!ids.has(childId)) queue.push(childId);
+        }
+
+        // Add spouse
+        const marriageRecord = marriage.get(guildId, current);
+        if (marriageRecord && !ids.has(marriageRecord.partner_id)) {
+            ids.add(marriageRecord.partner_id);
+            // Also add spouse's children
+            const spouseChildren = family.getChildren(guildId, marriageRecord.partner_id);
+            for (const sc of spouseChildren) {
+                if (!ids.has(sc)) queue.push(sc);
+            }
+        }
+    }
+
+    return [...ids];
 }
 
 /**
@@ -73,7 +141,6 @@ function assignPositions(node, depth = 0) {
     node.y = depth * (NODE_HEIGHT + V_GAP);
 
     if (node.children.length === 0) {
-        // Leaf node — width is just the node itself
         return node.width;
     }
 
@@ -213,7 +280,7 @@ function drawCoupleNode(ctx, node) {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Heart emoji in the middle
+        // Ring emoji in the middle
         ctx.font = "12px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -280,7 +347,7 @@ function drawConnections(ctx, node) {
 
 function renderTree(layoutTree) {
     // Assign positions
-    const totalWidth = assignPositions(layoutTree);
+    assignPositions(layoutTree);
     normalizePositions(layoutTree);
 
     // Calculate canvas size
@@ -331,17 +398,9 @@ module.exports = {
 
         // Check if user has any family connections
         const member = family.getMember(guildId, target.id);
-        const marriageData = marriage.get(guildId, target.id);
+        const marriageRecord = marriage.get(guildId, target.id);
 
-        if (!member && !marriageData) {
-            return interaction.reply({
-                embeds: [errorEmbed(`<@${target.id}> has no family yet! Use \`/adopt\` or \`/marry\` to start one.`)],
-                ephemeral: true
-            });
-        }
-
-        // Check if they have at least some relationship
-        const hasFamily = (member && (member.parent_id || member.children.length > 0)) || marriageData;
+        const hasFamily = (member && (member.parent_id || member.children.length > 0)) || marriageRecord;
         if (!hasFamily) {
             return interaction.reply({
                 embeds: [errorEmbed(`<@${target.id}> has no family yet! Use \`/adopt\` or \`/marry\` to start one.`)],
@@ -352,22 +411,11 @@ module.exports = {
         await interaction.deferReply();
 
         try {
-            // Find root of the family tree
-            const rootId = family.findRoot(guildId, target.id);
+            // Find the true root of the family (considers marriage links too)
+            const rootId = findFamilyRoot(guildId, target.id);
 
-            // Collect all member IDs we need to resolve usernames for
-            const allMemberIds = family.getAllMembers(guildId, rootId);
-
-            // Also add the root itself if not already included
-            if (!allMemberIds.includes(rootId)) allMemberIds.push(rootId);
-
-            // Add spouses to the member list
-            for (const memberId of [...allMemberIds]) {
-                const m = marriage.get(guildId, memberId);
-                if (m && !allMemberIds.includes(m.partner_id)) {
-                    allMemberIds.push(m.partner_id);
-                }
-            }
+            // Collect ALL member IDs in this family (traverses children + spouses)
+            const allMemberIds = collectAllFamilyIds(guildId, rootId);
 
             // Fetch usernames
             const memberCache = new Map();
@@ -381,8 +429,14 @@ module.exports = {
                 }
             }
 
-            // Build layout tree
-            const layoutTree = buildLayoutTree(guildId, rootId, guild, memberCache);
+            // Build layout tree (with visited set to prevent infinite loops)
+            const layoutTree = buildLayoutTree(guildId, rootId, memberCache);
+
+            if (!layoutTree) {
+                return interaction.editReply({
+                    embeds: [errorEmbed("Could not build family tree. Something went wrong.")]
+                });
+            }
 
             // Render to image
             const imageBuffer = renderTree(layoutTree);
